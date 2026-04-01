@@ -1,0 +1,17 @@
+[package]
+name    = "nexuscore-guest"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.25", default-features = false, features = ["realloc"] }
+ciborium    = { version = "0.2", default-features = false, features = ["std"] }
+serde       = { version = "1", features = ["derive"] }
+
+[profile.release]
+opt-level = "s"     # Size optimization for Wasm
+lto       = true
+strip     = true

@@ -1,0 +1,60 @@
+package nexuscore:surreal-adapter@0.3.0;
+
+/// Host-provided SurrealDB adapter.
+/// Tenants import this interface; the host owns the connection pool.
+interface query {
+  /// A tenant-scoped query handle.
+  /// The host assigns a connection slot from the shared pool.
+  resource query-handle {
+    constructor(tenant-id: string, ns: string, db: string);
+
+    /// Execute a SurrealQL statement.
+    /// Returns raw CBOR bytes. Zero intermediate JSON allocation on host path.
+    exec: func(surql: string) -> result<list<u8>, query-error>;
+
+    /// RELATE src -> edge -> tgt with optional CBOR-encoded data payload.
+    /// Direct graph edge insertion, bypasses relational join planner.
+    relate: func(
+      src:  string,
+      edge: string,
+      tgt:  string,
+      data: list<u8>
+    ) -> result<list<u8>, query-error>;
+
+    /// Batch execute: multiple SurrealQL statements in one round-trip.
+    exec-batch: func(statements: list<string>) -> result<list<list<u8>>, query-error>;
+  }
+
+  enum query-error {
+    connection-exhausted,
+    auth-failed,
+    parse-error,
+    timeout,
+    serialization-error,
+  }
+
+  /// Live query subscription handle (WASI 0.3 async streams)
+  resource live-handle {
+    /// Returns next event as CBOR bytes (blocking on async stream)
+    next: func() -> option<list<u8>>;
+    cancel: func();
+  }
+
+  /// Subscribe to a LIVE SELECT — SurrealDB's CDC primitive
+  live-query: func(
+    handle: borrow<query-handle>,
+    surql:  string
+  ) -> result<live-handle, query-error>;
+}
+
+world surreal-guest {
+  /// Tenant component imports the query interface (host provides it)
+  import query;
+
+  /// Entry point: process one request event (CBOR-encoded)
+  /// Returns CBOR-encoded response
+  export run: func(event: list<u8>) -> result<list<u8>, string>;
+
+  /// Called by host on eviction — component MUST release all resources
+  export on-evict: func();
+}
