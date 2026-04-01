@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusCore · Graph Engine · Day 2</title>
+<style>
+  :root {
+    --bg:      #0a0e1a;
+    --panel:   #111827;
+    --border:  #1e293b;
+    --green:   #22c55e;
+    --blue:    #3b82f6;
+    --orange:  #f97316;
+    --cyan:    #06b6d4;
+    --text:    #e2e8f0;
+    --dim:     #64748b;
+    --hot:     #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    padding: 24px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 1.1rem;
+    color: var(--cyan);
+    letter-spacing: 0.1em;
+    margin-bottom: 4px;
+  }
+  .subtitle { color: var(--dim); font-size: 0.78rem; margin-bottom: 24px; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .panel-title {
+    font-size: 0.7rem;
+    color: var(--dim);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  canvas { width: 100%; display: block; }
+  .metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+  .metric-row:last-child { border-bottom: none; }
+  .metric-label { color: var(--dim); }
+  .metric-val   { font-weight: bold; }
+  .val-green  { color: var(--green); }
+  .val-orange { color: var(--orange); }
+  .val-blue   { color: var(--blue); }
+  .val-red    { color: var(--hot); }
+  .log-panel { grid-column: 1 / -1; max-height: 180px; overflow-y: auto; }
+  .log-entry {
+    font-size: 0.72rem;
+    padding: 3px 0;
+    border-bottom: 1px solid #1e293b44;
+    display: flex;
+    gap: 12px;
+  }
+  .log-ts   { color: var(--dim); min-width: 80px; }
+  .log-type { min-width: 70px; }
+  #status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<h1>NexusCore · Graph Engine · Day 2</h1>
+<p class="subtitle"><span id="status-dot"></span>CSR Graph in Linear Memory · Real-time Simulation</p>
+
+<div class="grid">
+  <div class="panel">
+    <div class="panel-title">Runtime Metrics</div>
+    <div class="metric-row"><span class="metric-label">Edges / sec</span><span class="metric-val val-green" id="m-eps">—</span></div>
+    <div class="metric-row"><span class="metric-label">Total Edges</span><span class="metric-val val-blue" id="m-edges">0</span></div>
+    <div class="metric-row"><span class="metric-label">Generation</span><span class="metric-val val-orange" id="m-gen">0</span></div>
+    <div class="metric-row"><span class="metric-label">Memory Used</span><span class="metric-val val-blue" id="m-mem">0 MB</span></div>
+    <div class="metric-row"><span class="metric-label">Hot Nodes</span><span class="metric-val val-red" id="m-hot">0</span></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Event Log</div>
+    <div id="log-container"></div>
+  </div>
+</div>
+
+<script>
+const NODE_CAP = 100_000;
+const EDGE_CAP = 5_000_000;
+const HEADER_SIZE = 64;
+const ROW_PTR_SIZE = (NODE_CAP + 1) * 4;
+const TOTAL_MEM = HEADER_SIZE + ROW_PTR_SIZE + EDGE_CAP * 4;
+
+let state = {
+  edgeCount: 0,
+  generation: 0,
+  watermark: HEADER_SIZE + ROW_PTR_SIZE,
+  hotNodes: 0,
+  epsHistory: [],
+  lastEdgeCount: 0,
+  lastTs: Date.now(),
+};
+
+function simulateBatch() {
+  const batchSize = 500 + Math.floor(Math.random() * 500);
+  state.edgeCount = Math.min(state.edgeCount + batchSize, EDGE_CAP);
+  state.watermark = HEADER_SIZE + ROW_PTR_SIZE + state.edgeCount * 4;
+  state.generation++;
+  if (state.generation % 7 === 0) state.hotNodes = Math.min(12, 1 + Math.floor(state.edgeCount / 250_000));
+
+  const now = Date.now();
+  const dt = (now - state.lastTs) / 1000;
+  const eps = (state.edgeCount - state.lastEdgeCount) / Math.max(dt, 0.001);
+  state.epsHistory.push(eps);
+  if (state.epsHistory.length > 30) state.epsHistory.shift();
+  state.lastEdgeCount = state.edgeCount;
+  state.lastTs = now;
+}
+
+function updateMetrics() {
+  const avgEps = state.epsHistory.reduce((a,b)=>a+b,0) / (state.epsHistory.length||1);
+  document.getElementById('m-eps').textContent   = avgEps > 1e6 ? (avgEps/1e6).toFixed(2) + 'M/s' : (avgEps/1e3).toFixed(1) + 'K/s';
+  document.getElementById('m-edges').textContent = (state.edgeCount/1e6).toFixed(3) + 'M';
+  document.getElementById('m-gen').textContent   = state.generation;
+  document.getElementById('m-mem').textContent   = (state.watermark/1024/1024).toFixed(1) + ' MB';
+  document.getElementById('m-hot').textContent   = state.hotNodes;
+}
+
+function addLog(msg) {
+  const container = document.getElementById('log-container');
+  const ts  = new Date().toISOString().slice(11,23);
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-type">[SIM]</span><span>${msg}</span>`;
+  container.prepend(div);
+  while (container.children.length > 40) container.lastChild.remove();
+}
+
+function tick() {
+  simulateBatch();
+  updateMetrics();
+  if (Math.random() < 0.7) addLog(`generation=${state.generation} edges=${state.edgeCount}`);
+}
+
+tick();
+setInterval(tick, 300);
+</script>
+</body>
+</html>

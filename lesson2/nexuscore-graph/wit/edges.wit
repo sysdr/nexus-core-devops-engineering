@@ -1,0 +1,53 @@
+package nexuscore:graph@0.3.0;
+
+/// Core graph edge store — WASI 0.3 async component interface
+interface edge-store {
+    /// A tenant-isolated graph partition backed by CSR in linear memory
+    resource graph-partition {
+        /// Allocate a new partition: pre-reserves linear memory pages
+        /// node-capacity: max node ID (dense allocation)
+        /// edge-capacity: total directed edges this partition can hold
+        constructor(node-capacity: u32, edge-capacity: u32);
+
+        /// Bulk insert directed edges (src -> dst).
+        /// Returns edges actually inserted (may be < batch.len() at capacity).
+        /// Async: yields while radix-sort rebuilds CSR row_ptr array.
+        async add-edges: func(
+            batch: list<tuple<u32, u32>>
+        ) -> result<u32, graph-error>;
+
+        /// Returns sorted list of nodes this node follows (outbound edges).
+        /// Async: yields on linear memory page-fault for cold partitions.
+        async get-following: func(node-id: u32) -> result<list<u32>, graph-error>;
+
+        /// Returns sorted list of nodes following this node (inbound scan — O(E)).
+        /// NOTE: Day 2 baseline — Day 3 adds reverse CSR for O(log E).
+        async get-followers: func(node-id: u32) -> result<list<u32>, graph-error>;
+
+        /// Check if directed edge src -> dst exists (binary search, O(log degree)).
+        edge-exists: func(src: u32, dst: u32) -> bool;
+
+        /// Current memory watermark in bytes (bump allocator position).
+        memory-watermark: func() -> u64;
+
+        /// Generation counter — increments on every successful add-edges batch.
+        generation: func() -> u64;
+
+        /// Node degree (out-degree = following count).
+        out-degree: func(node-id: u32) -> u32;
+    }
+
+    enum graph-error {
+        out-of-node-capacity,
+        out-of-edge-capacity,
+        invalid-node-id,
+        corrupted-csr,
+        concurrent-write-conflict,
+    }
+}
+
+world graph-component {
+    export edge-store;
+    import wasi:io/streams@0.3.0;
+    import wasi:clocks/monotonic-clock@0.3.0;
+}
