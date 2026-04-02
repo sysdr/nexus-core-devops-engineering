@@ -1,0 +1,19 @@
+package nexuscore:graph@0.3.0;
+
+/// Reference WIT for the lesson narrative. The checked-in Rust crates use a native
+/// `GraphEngine` API for CI-friendly builds; Wasm/WASI component wiring is an extension exercise.
+interface query {
+  record query-params {
+    root-node-id: u32,
+    max-depth: u8,
+    tenant-id: u32,
+    max-results: u32,
+  }
+
+  query-posts-by-relationship: func(params: query-params) -> result<list<list<u8>>, string>;
+  load-graph: func(blob: list<u8>) -> result<_, string>;
+}
+
+world nexuscore-graph {
+  export query;
+}

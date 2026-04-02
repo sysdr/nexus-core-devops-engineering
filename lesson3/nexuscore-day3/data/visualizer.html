@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NexusCore Day 3 — Live Dashboard</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #ffffff; color: #e0e6f0; font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace; padding: 24px; }
+  h1 { font-size: 18px; color: #5ec4a0; margin-bottom: 8px; letter-spacing: 2px; }
+  #status { font-size: 11px; color: #94a3b8; margin-bottom: 16px; line-height: 1.5; }
+  #status .warn { color: #fbbf24; }
+  #status .ok { color: #34d399; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+  .card { background: #111827; border: 1px solid #1e293b; border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 12px; }
+  .metric { font-size: 28px; font-weight: bold; color: #38bdf8; }
+  .metric.na { color: #475569; font-size: 22px; }
+  .sub { font-size: 11px; color: #475569; margin-top: 4px; }
+  .sub em { color: #64748b; font-style: normal; }
+  .bar-wrap { background: #1e293b; border-radius: 4px; height: 8px; overflow: hidden; margin-top: 8px; }
+  .bar { height: 100%; background: linear-gradient(90deg, #0ea5e9, #38bdf8); border-radius: 4px; transition: width 0.25s; }
+  .bar.warn { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+  .bar.danger { background: linear-gradient(90deg, #ef4444, #f87171); }
+  .bar.muted { background: #334155; }
+  #log { background: #0d1117; border: 1px solid #1e293b; border-radius: 8px;
+         padding: 12px; height: 180px; overflow-y: auto; font-size: 11px;
+         color: #94a3b8; margin-top: 16px; }
+  .log-line { margin: 2px 0; }
+  .log-line.ok { color: #34d399; }
+  .log-line.warn { color: #fbbf24; }
+  canvas { width: 100%; height: 100%; }
+</style>
+</head>
+<body>
+<h1>▸ NEXUSCORE DAY 3 — DOCUMENT-GRAPH HYBRID QUERY ENGINE</h1>
+<div id="status">Connecting to <code id="api-url">/api/metrics</code>…</div>
+<div class="grid">
+  <div class="card">
+    <h2>Queries / sec (CSR BFS)</h2>
+    <div class="metric" id="qps">0</div>
+    <div class="sub">Lesson target: <em>100,000 rps</em> at the Wasm/XDP tier; this host measures native CSR path.</div>
+    <div class="bar-wrap"><div class="bar" id="qps-bar" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <h2>p99 BFS Latency</h2>
+    <div class="metric" id="lat">—</div>
+    <div class="sub">Lesson target: <em>&lt;40µs</em> p99 (mean shown in log).</div>
+    <div class="bar-wrap"><div class="bar" id="lat-bar" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <h2>Active tenant slots</h2>
+    <div class="metric" id="tenants">0</div>
+    <div class="sub">Distinct <code>tenant_id % 256</code> seen in the last 1s <em>(pool size 256)</em>.</div>
+    <div class="bar-wrap"><div class="bar" id="tenant-bar" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <h2>TLB miss rate</h2>
+    <div class="metric na" id="tlb">—</div>
+    <div class="sub">Not sampled here. Lesson target: <em>&lt;2%</em> — use <code>perf -e dTLB-load-misses</code>.</div>
+    <div class="bar-wrap"><div class="bar muted" id="tlb-bar" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <h2>XDP redirect throughput</h2>
+    <div class="metric na" id="xdp">—</div>
+    <div class="sub">No XDP program attached in this demo. Lesson target: <em>10M+ pps</em>.</div>
+    <div class="bar-wrap"><div class="bar muted" id="xdp-bar" style="width:0%"></div></div>
+  </div>
+  <div class="card">
+    <h2>Arena fragmentation</h2>
+    <div class="metric" id="frag">0%</div>
+    <div class="sub">% of arena bytes not covered by packed doc lengths <em>(slab waste proxy; alert &gt;20%)</em>.</div>
+    <div class="bar-wrap"><div class="bar" id="frag-bar" style="width:0%"></div></div>
+  </div>
+</div>
+<div class="card" style="margin-top:16px">
+  <h2>Graph traversal viz — BFS frontier (driven by live tenant slots)</h2>
+  <canvas id="canvas" width="800" height="140"></canvas>
+</div>
+<div id="log"></div>
+<script>
+const logEl = document.getElementById('log');
+const statusEl = document.getElementById('status');
+document.getElementById('api-url').textContent = new URL('/api/metrics', window.location.origin);
+
+function addLog(msg, cls='') {
+  const d = document.createElement('div');
+  d.className = 'log-line ' + cls;
+  d.textContent = `[${new Date().toISOString().slice(11,23)}] ${msg}`;
+  logEl.prepend(d);
+  if (logEl.children.length > 50) logEl.removeChild(logEl.lastChild);
+}
+
+function setBar(barId, pct, warn, danger, muted) {
+  const bar = document.getElementById(barId);
+  const p = Math.min(Math.max(pct, 0), 100);
+  bar.style.width = p + '%';
+  bar.className = 'bar' + (muted ? ' muted' : (p > danger ? ' danger' : p > warn ? ' warn' : ''));
+}
+
+let lastTotal = 0;
+async function pullMetrics() {
+  try {
+    const r = await fetch('/api/metrics', { cache: 'no-store' });
+    if (!r.ok) throw new Error(String(r.status));
+    const m = await r.json();
+
+    const qps = m.queries_per_sec || 0;
+    document.getElementById('qps').textContent = Math.round(qps).toLocaleString();
+    setBar('qps-bar', (qps / 100000) * 100, 70, 95, false);
+
+    const latEl = document.getElementById('lat');
+    if (m.graph_loaded) {
+      const p99 = m.p99_bfs_latency_us;
+      const mean = m.mean_bfs_latency_us;
+      latEl.textContent = p99.toFixed(1) + 'µs';
+      latEl.classList.remove('na');
+      setBar('lat-bar', (p99 / 40) * 100, 75, 100, false);
+      if (lastTotal !== m.queries_total) {
+        addLog(`p99=${p99.toFixed(1)}µs mean=${mean.toFixed(1)}µs docs/query≈${(m.avg_docs_per_query||0).toFixed(1)}`, p99 <= 40 ? 'ok' : 'warn');
+      }
+    } else {
+      latEl.textContent = '—';
+      latEl.classList.add('na');
+      setBar('lat-bar', 0, 60, 90, true);
+    }
+
+    document.getElementById('tenants').textContent = String(m.active_tenant_slots ?? 0);
+    setBar('tenant-bar', ((m.active_tenant_slots || 0) / (m.tenant_pool_size || 256)) * 100, 70, 92, false);
+
+    document.getElementById('tlb').textContent = m.tlb_miss_pct != null ? (m.tlb_miss_pct.toFixed(2) + '%') : '—';
+    document.getElementById('xdp').textContent = m.xdp_redirect_mps != null ? (m.xdp_redirect_mps.toFixed(2) + 'M/s') : '—';
+
+    const frag = m.arena_fragmentation_pct ?? 0;
+    document.getElementById('frag').textContent = frag.toFixed(2) + '%';
+    setBar('frag-bar', (frag / 20) * 100, 70, 90, false);
+
+    const arenaMb = (m.arena_bytes / (1024 * 1024)).toFixed(2);
+    statusEl.innerHTML =
+      `<span class="${m.graph_loaded ? 'ok' : 'warn'}">${m.graph_loaded ? 'CSR graph loaded' : 'No graph — run ./scripts/gen_graph.py'}</span> · ` +
+      `nodes <strong>${m.graph_nodes}</strong> · edges <strong>${m.graph_edges}</strong> · arena <strong>${arenaMb}</strong> MiB · ` +
+      `queries <strong>${m.queries_total}</strong> · uptime <strong>${m.uptime_secs.toFixed(0)}</strong>s · ` +
+      `<span style="color:#64748b">io_uring batch: n/a (extension)</span>`;
+
+    window.__lastSlots = m.active_tenant_slots || 0;
+    lastTotal = m.queries_total;
+  } catch (e) {
+    statusEl.innerHTML = `<span class="warn">Offline — start host from <code>nexuscore-day3</code>: <code>./scripts/start.sh</code> then open <code>http://127.0.0.1:9847/</code></span> (${e.message})`;
+  }
+}
+
+setInterval(pullMetrics, 400);
+pullMetrics();
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const nodes = Array.from({length: 18}, (_, i) => ({
+  x: 30 + (i % 9) * 84,
+  y: 30 + Math.floor(i/9) * 70,
+}));
+
+let vizT = 0;
+function drawViz() {
+  vizT++;
+  ctx.clearRect(0, 0, 800, 140);
+  const slots = window.__lastSlots || 0;
+  const hotCount = Math.min(18, Math.max(1, Math.floor((slots / 256) * 18) + 1));
+  const hot = new Set();
+  for (let i = 0; i < hotCount; i++) hot.add((vizT + i * 3) % 18);
+
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i], b = nodes[(i+1)%nodes.length];
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = '#1e3a5f'; ctx.lineWidth = 0.8;
+    ctx.stroke();
+    const c = nodes[(i+3)%nodes.length];
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+    ctx.strokeStyle = '#1e2a3f'; ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  nodes.forEach((n, i) => {
+    const isHot = hot.has(i);
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, isHot ? 8 : 5, 0, Math.PI * 2);
+    ctx.fillStyle = isHot ? '#38bdf8' : '#1e3a5f';
+    ctx.fill();
+    if (isHot) {
+      ctx.beginPath();
+      ctx.arc(n.x, n.y, 12, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(56,189,248,0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  });
+
+  requestAnimationFrame(drawViz);
+}
+drawViz();
+addLog('Dashboard loaded — polling /api/metrics', 'ok');
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+[package]
+name = "nexuscore-graph"
+version = "0.3.0"
+edition = "2021"
+
+[lib]
+name = "nexuscore_graph"
+path = "src/lib.rs"
+crate-type = ["rlib"]
