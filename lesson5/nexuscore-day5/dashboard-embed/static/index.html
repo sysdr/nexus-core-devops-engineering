@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NexusCore Day 5 — Benchmark Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3d8bfd;
+      --good: #3ecf8e;
+      --warn: #f5a623;
+      --bad: #f25c54;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 1.25rem;
+      line-height: 1.45;
+    }
+    h1 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 0 0 0.25rem;
+      color: var(--accent);
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-bottom: 1.25rem;
+    }
+    .grid-top {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.5rem;
+    }
+    .pill {
+      background: var(--panel);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      border: 1px solid #2a3548;
+    }
+    .pill .label { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .pill .val { font-size: 1.1rem; margin-top: 0.25rem; }
+    .ok { color: var(--good); }
+    .no { color: var(--bad); }
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--panel);
+      border-radius: 10px;
+      padding: 1rem;
+      border: 1px solid #2a3548;
+    }
+    .card h2 {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+      color: var(--accent);
+    }
+    .lat {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+    }
+    .lat span strong { color: var(--text); }
+    .p50 strong { color: var(--good); }
+    .p99 strong { color: var(--warn); }
+    .p999 strong { color: var(--bad); }
+    canvas { max-height: 220px; }
+    footer {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .toolbar button {
+      font-family: inherit;
+      font-size: 0.8rem;
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      border: 1px solid #2a3548;
+      background: #243247;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .toolbar button:hover:not(:disabled) {
+      background: #2d3d56;
+      border-color: var(--accent);
+    }
+    .toolbar button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .toolbar button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+    .toolbar .status {
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex: 1 1 12rem;
+      min-width: 0;
+    }
+    .toolbar .status.err { color: var(--bad); }
+    .toolbar .status.ok { color: var(--good); }
+  </style>
+</head>
+<body>
+  <h1>NexusCore Day 5 — SurrealDB vs polyglot (eBPF-style metrics)</h1>
+  <p class="sub">Kernel histogram model: log₂ buckets · vfs_read per stack · tcp_sendmsg combined · Load-gen client stats via POST /api/ingest/load</p>
+
+  <div class="toolbar" role="group" aria-label="Metrics actions">
+    <button type="button" id="btn-refresh">Refresh metrics</button>
+    <button type="button" id="btn-sample-load">Fill sample load stats</button>
+    <button type="button" id="btn-sample-histograms">Fill sample histograms</button>
+    <span class="status" id="toolbar-status" aria-live="polite"></span>
+  </div>
+
+  <div class="grid-top">
+    <div class="pill">
+      <div class="label">Last update (UTC)</div>
+      <div class="val" id="updated">—</div>
+    </div>
+    <div class="pill">
+      <div class="label">SurrealDB :8000</div>
+      <div class="val" id="surreal">—</div>
+    </div>
+    <div class="pill">
+      <div class="label">Load-gen actual RPS</div>
+      <div class="val" id="rps">—</div>
+    </div>
+    <div class="pill">
+      <div class="label">Client p50 / p99 / p999 (µs)</div>
+      <div class="val" id="client-lat">—</div>
+    </div>
+    <div class="pill">
+      <div class="label">Total requests / errors</div>
+      <div class="val" id="req-err">—</div>
+    </div>
+  </div>
+
+  <div class="charts" id="charts"></div>
+
+  <footer>
+    Toolbar buttons call the same ingest APIs as the CLI scripts. Polls <code>/api/metrics</code> every 2s. Run <code>./scripts/dashboard.sh</code> for terminal charts plus web (starts <code>dashboard-web</code> if needed), or <code>./scripts/dashboard-web.sh</code> for the server only. Binds <code>0.0.0.0</code> for WSL2 — <code>http://localhost:3030/</code>.
+  </footer>
+
+  <script>
+    const charts = {};
+
+    const SAMPLE_LOAD = {
+      elapsed_secs: 12.5,
+      target_rps: 1000,
+      actual_rps: 982.3,
+      total_requests: 12000,
+      errors: 2,
+      p50_us: 850,
+      p99_us: 4200,
+      p999_us: 12000,
+      max_us: 25000,
+    };
+
+    const SAMPLE_HISTOGRAMS = [
+      {"ts":"2026-04-03T12:00:00Z","stack":"surrealdb","op":"vfs_read","p50_ns":18432,"p99_ns":72800,"p999_ns":215000,"total_count":50000,"buckets":{"14":120,"15":8200,"16":22000,"17":12000,"18":5000,"19":2000,"20":680}},
+      {"ts":"2026-04-03T12:00:01Z","stack":"polyglot","op":"vfs_read","p50_ns":22100,"p99_ns":91000,"p999_ns":280000,"total_count":42000,"buckets":{"15":400,"16":6000,"17":18000,"18":9000,"19":6000,"20":2800}},
+      {"ts":"2026-04-03T12:00:02Z","stack":"combined","op":"tcp_sendmsg","p50_ns":9500,"p99_ns":45200,"p999_ns":132000,"total_count":31000,"buckets":{"13":200,"14":5000,"15":12000,"16":8000,"17":3500,"18":2300}},
+    ];
+
+    function setToolbarStatus(msg, kind) {
+      const el = document.getElementById("toolbar-status");
+      el.textContent = msg || "";
+      el.className = "status" + (kind ? " " + kind : "");
+    }
+
+    async function postJson(path, body) {
+      const res = await fetch(path, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const t = await res.text();
+        throw new Error(res.status + " " + (t || res.statusText));
+      }
+    }
+
+    function nsLabel(ns) {
+      if (ns < 1000) return ns + " ns";
+      if (ns < 1e6) return (ns / 1e3).toFixed(1) + " µs";
+      return (ns / 1e6).toFixed(2) + " ms";
+    }
+
+    function bucketChartData(buckets) {
+      const entries = Object.entries(buckets || {})
+        .map(([k, v]) => ({ slot: parseInt(k, 10), v }))
+        .filter((x) => !isNaN(x.slot))
+        .sort((a, b) => a.slot - b.slot);
+      const labels = entries.map((e) => {
+        const lo = Math.pow(2, e.slot);
+        const hi = Math.pow(2, e.slot + 1);
+        return nsLabel(lo) + " – " + nsLabel(hi);
+      });
+      const data = entries.map((e) => e.v);
+      return { labels, data };
+    }
+
+    function ensureChart(id, title, report) {
+      const el = document.getElementById("charts");
+      let wrap = document.getElementById("card-" + id);
+      if (!wrap) {
+        wrap = document.createElement("div");
+        wrap.className = "card";
+        wrap.id = "card-" + id;
+        wrap.innerHTML = "<h2></h2><div class='lat'></div><canvas></canvas>";
+        el.appendChild(wrap);
+      }
+      wrap.querySelector("h2").textContent = title;
+      const lat = wrap.querySelector(".lat");
+      lat.innerHTML =
+        "<span class='p50'>p50 <strong>" + nsLabel(report.p50_ns) + "</strong></span>" +
+        "<span class='p99'>p99 <strong>" + nsLabel(report.p99_ns) + "</strong></span>" +
+        "<span class='p999'>p999 <strong>" + nsLabel(report.p999_ns) + "</strong></span>" +
+        "<span>total <strong>" + report.total_count.toLocaleString() + "</strong></span>";
+      const canvas = wrap.querySelector("canvas");
+      const { labels, data } = bucketChartData(report.buckets);
+      const cfg = {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            label: "count",
+            data,
+            backgroundColor: "rgba(61, 139, 253, 0.65)",
+            borderColor: "rgba(61, 139, 253, 1)",
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: "#8b9cb3", maxRotation: 45, minRotation: 45, font: { size: 9 } } },
+            y: { ticks: { color: "#8b9cb3" }, grid: { color: "#2a3548" } },
+          },
+        },
+      };
+      if (charts[id]) {
+        charts[id].data.labels = labels;
+        charts[id].data.datasets[0].data = data;
+        charts[id].update();
+      } else {
+        charts[id] = new Chart(canvas.getContext("2d"), cfg);
+      }
+    }
+
+    async function tick() {
+      try {
+        const res = await fetch("/api/metrics");
+        if (!res.ok) throw new Error("GET /api/metrics " + res.status);
+        const j = await res.json();
+        document.getElementById("updated").textContent = j.updated_rfc3339 || "—";
+        const sur = document.getElementById("surreal");
+        if (j.surrealdb_reachable) {
+          sur.textContent = "reachable";
+          sur.className = "val ok";
+        } else {
+          sur.textContent = "unreachable";
+          sur.className = "val no";
+        }
+        const lc = j.load_client;
+        if (lc) {
+          document.getElementById("rps").textContent = lc.actual_rps.toFixed(1);
+          document.getElementById("client-lat").textContent =
+            lc.p50_us + " / " + lc.p99_us + " / " + lc.p999_us;
+          document.getElementById("req-err").textContent =
+            lc.total_requests.toLocaleString() + " / " + lc.errors;
+        } else {
+          document.getElementById("rps").textContent = "— (ingest load-gen JSON)";
+          document.getElementById("client-lat").textContent = "—";
+          document.getElementById("req-err").textContent = "—";
+        }
+        (j.histograms || []).forEach((h, i) => {
+          const id = h.stack + "-" + h.op + "-" + i;
+          ensureChart(id, h.stack.toUpperCase() + " · " + h.op, h);
+        });
+        setToolbarStatus("");
+      } catch (e) {
+        console.error(e);
+        setToolbarStatus("Poll failed: " + e.message, "err");
+      }
+    }
+
+    async function withBusy(btn, fn) {
+      if (!btn) return fn();
+      btn.disabled = true;
+      try {
+        await fn();
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", function () {
+      const b = this;
+      withBusy(b, async function () {
+        setToolbarStatus("Refreshing…");
+        await tick();
+        setToolbarStatus("Updated.", "ok");
+        setTimeout(function () { setToolbarStatus(""); }, 2000);
+      });
+    });
+
+    document.getElementById("btn-sample-load").addEventListener("click", function () {
+      const b = this;
+      withBusy(b, async function () {
+        try {
+          await postJson("/api/ingest/load", SAMPLE_LOAD);
+          setToolbarStatus("Sample load stats sent.", "ok");
+          await tick();
+        } catch (e) {
+          setToolbarStatus("Load ingest failed: " + e.message, "err");
+          console.error(e);
+        }
+      });
+    });
+
+    document.getElementById("btn-sample-histograms").addEventListener("click", function () {
+      const b = this;
+      withBusy(b, async function () {
+        try {
+          for (const h of SAMPLE_HISTOGRAMS) {
+            await postJson("/api/ingest/histogram", h);
+          }
+          setToolbarStatus("Sample histograms sent.", "ok");
+          await tick();
+        } catch (e) {
+          setToolbarStatus("Histogram ingest failed: " + e.message, "err");
+          console.error(e);
+        }
+      });
+    });
+
+    tick();
+    setInterval(tick, 2000);
+  </script>
+</body>
+</html>

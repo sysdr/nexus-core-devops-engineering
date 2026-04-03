@@ -1,0 +1,68 @@
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Rust
+/target/
+**/target/
+**/*.rlib
+**/*.rmeta
+
+# Go
+**/*.exe
+**/*.test
+**/*.out
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+**/$py.class
+**/.pytest_cache/
+**/.tox/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/*.egg-info/
+**/.eggs/
+
+# Node
+**/node_modules/
+**/.npm/
+**/.yarn/
+**/.pnpm-store/
+**/dist/
+**/.next/
+
+# Virtualenvs
+**/venv/
+**/.venv/
+
+# Logs / temp / lesson run output
+**/*.log
+**/results/
+/tmp/
+
+# Editor
+.idea/
+.vscode/
+
+# Istio / Kubernetes artefacts (generated or vendored)
+**/istio/
+**/istio-*/
+**/*istio*.yaml
+**/*istio*.yml
+
+# Secrets & local env (never commit API keys)
+.env
+.env.*
+!.env.example
+.envrc
+*.pem
+secrets/
+*.key
+
+# OS / tooling
+.AppleDouble

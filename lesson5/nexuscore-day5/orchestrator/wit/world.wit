@@ -1,0 +1,44 @@
+package nexuscore:benchmark@0.1.0;
+
+interface types {
+    /// A named benchmark scenario
+    record scenario-config {
+        /// Target: "surrealdb" | "polyglot"
+        target: string,
+        /// Number of concurrent virtual tenants
+        tenant-count: u32,
+        /// Requests per tenant
+        requests-per-tenant: u32,
+        /// Payload size in bytes
+        payload-bytes: u32,
+        /// Operation mix: "read" | "write" | "mixed"
+        operation: string,
+    }
+
+    record latency-bucket {
+        /// log2 bucket index (0 = <1ns, 1 = <2ns, ... 63 = overflow)
+        slot: u32,
+        count: u64,
+    }
+
+    record bench-result {
+        target: string,
+        p50-ns: u64,
+        p99-ns: u64,
+        p999-ns: u64,
+        throughput-rps: f64,
+        context-switches: u64,
+        syscall-count: u64,
+        histogram: list<latency-bucket>,
+    }
+}
+
+world orchestrator {
+    use types.{scenario-config, bench-result};
+
+    /// Entry point: run scenario and return aggregated results
+    export run: func(cfg: scenario-config) -> bench-result;
+
+    /// Dry-run: validate config only, no I/O
+    export validate: func(cfg: scenario-config) -> bool;
+}
