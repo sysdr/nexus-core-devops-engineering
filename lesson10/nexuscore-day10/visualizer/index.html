@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NexusCore · Day 10 · Projection Cache Dashboard</title>
+<style>
+:root {
+  --bg: #0d1117; --bg2: #161b22; --border: #30363d;
+  --green: #3fb950; --blue: #58a6ff; --orange: #f0883e;
+  --red: #f85149; --text: #c9d1d9; --muted: #8b949e;
+  --font: 'JetBrains Mono', 'Fira Code', monospace;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 13px; }
+header { padding: 18px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+header h1 { font-size: 15px; font-weight: 600; color: var(--blue); }
+header span { color: var(--muted); font-size: 11px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; padding: 20px 24px; }
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+.card-val { font-size: 28px; font-weight: 700; }
+.card-val.green { color: var(--green); }
+.card-val.blue  { color: var(--blue); }
+.card-val.orange { color: var(--orange); }
+.card-val.red { color: var(--red); }
+.chart-area { margin: 0 24px 20px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+.chart-area h2 { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+canvas { width: 100%; height: 140px; display: block; }
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.bar-label { width: 80px; color: var(--muted); font-size: 11px; text-align: right; }
+.bar-track { flex: 1; height: 16px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+.bar-fill.hit  { background: var(--green); }
+.bar-fill.miss { background: var(--orange); }
+.bar-fill.build { background: var(--blue); }
+.bar-val { width: 60px; font-size: 11px; color: var(--text); }
+footer { padding: 12px 24px; color: var(--muted); font-size: 11px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+<header>
+  <h1>NexusCore · Day 10 · Projection Cache</h1>
+  <span id="ts">—</span>
+</header>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-label">Cache Hit Rate</div>
+    <div class="card-val green" id="v-hit">—</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Avg Rebuild Latency</div>
+    <div class="card-val blue" id="v-rebuild">—</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Total Rebuilds</div>
+    <div class="card-val orange" id="v-total">—</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Rebuild Errors</div>
+    <div class="card-val red" id="v-err">—</div>
+  </div>
+</div>
+
+<div class="chart-area">
+  <h2>Throughput (QPS over last 30 ticks)</h2>
+  <canvas id="qps-canvas"></canvas>
+</div>
+
+<div class="chart-area">
+  <h2>Operation breakdown (current window)</h2>
+  <div class="bar-row">
+    <div class="bar-label">Cache hits</div>
+    <div class="bar-track"><div class="bar-fill hit" id="bar-hit" style="width:0%"></div></div>
+    <div class="bar-val" id="bv-hit">0</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Cache misses</div>
+    <div class="bar-track"><div class="bar-fill miss" id="bar-miss" style="width:0%"></div></div>
+    <div class="bar-val" id="bv-miss">0</div>
+  </div>
+  <div class="bar-row">
+    <div class="bar-label">Rebuilds ok</div>
+    <div class="bar-track"><div class="bar-fill build" id="bar-build" style="width:0%"></div></div>
+    <div class="bar-val" id="bv-build">0</div>
+  </div>
+</div>
+
+<footer>Polling <code>/metrics</code> every 500ms · same origin as this page · NexusCore Day 10</footer>
+
+<script>
+const canvas = document.getElementById('qps-canvas');
+const ctx = canvas.getContext('2d');
+const qpsHistory = [];
+let prevTotal = 0;
+
+function resizeCanvas() {
+  canvas.width = canvas.parentElement.clientWidth - 32;
+  canvas.height = 140;
+}
+resizeCanvas();
+window.addEventListener('resize', () => { resizeCanvas(); redrawChart(); });
+
+function redrawChart() {
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  if (qpsHistory.length < 2) return;
+  const max = Math.max(...qpsHistory, 1);
+  const step = W / (qpsHistory.length - 1);
+  ctx.beginPath();
+  ctx.strokeStyle = '#58a6ff';
+  ctx.lineWidth = 1.5;
+  qpsHistory.forEach((v, i) => {
+    const x = i * step;
+    const y = H - (v / max) * (H - 20) - 4;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.lineTo((qpsHistory.length-1)*step, H);
+  ctx.lineTo(0, H);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(88,166,255,0.12)';
+  ctx.fill();
+}
+
+async function poll() {
+  try {
+    const r = await fetch('/metrics', { cache: 'no-store' });
+    const d = await r.json();
+
+    const total = d.cache_hits + d.cache_misses;
+    const qps = total - prevTotal;
+    prevTotal = total;
+    qpsHistory.push(qps);
+    if (qpsHistory.length > 30) qpsHistory.shift();
+
+    document.getElementById('v-hit').textContent = d.hit_rate_pct + '%';
+    document.getElementById('v-rebuild').textContent = d.avg_rebuild_ns + 'ns';
+    document.getElementById('v-total').textContent = d.rebuilds_ok.toLocaleString();
+    document.getElementById('v-err').textContent = (d.rebuild_errors ?? 0).toLocaleString();
+    document.getElementById('ts').textContent = new Date().toLocaleTimeString();
+
+    const maxBar = Math.max(d.cache_hits, d.cache_misses, d.rebuilds_ok, 1);
+    document.getElementById('bar-hit').style.width   = (d.cache_hits / maxBar * 100)   + '%';
+    document.getElementById('bar-miss').style.width  = (d.cache_misses / maxBar * 100)  + '%';
+    document.getElementById('bar-build').style.width = (d.rebuilds_ok / maxBar * 100) + '%';
+    document.getElementById('bv-hit').textContent   = d.cache_hits.toLocaleString();
+    document.getElementById('bv-miss').textContent  = d.cache_misses.toLocaleString();
+    document.getElementById('bv-build').textContent = d.rebuilds_ok.toLocaleString();
+
+    redrawChart();
+  } catch(e) {
+    document.getElementById('ts').textContent = 'metrics unavailable';
+  }
+}
+
+poll();
+setInterval(poll, 500);
+</script>
+</body>
+</html>

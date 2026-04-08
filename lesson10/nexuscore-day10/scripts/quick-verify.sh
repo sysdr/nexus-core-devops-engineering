@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+echo "NexusCore Day 10 — Quick Verify"
+echo "─────────────────────────────────────────"
+echo "[1] Checking eBPF object..."
+ls -lh ebpf-xdp/projection_xdp.bpf.o 2>/dev/null || echo "  Not compiled. Run: make build"
+echo "[2] Checking WASI component..."
+ls -lh projection-engine/target/wasm32-wasip2/release/projection_engine.wasm 2>/dev/null || echo "  Not compiled. Run: make build"
+echo "[3] Checking loader binary..."
+ls -lh target/release/nexus-loader 2>/dev/null || echo "  Not compiled. Run: make build"
+echo "[4] Checking loader metrics (if running)..."
+curl -sf http://localhost:8080/metrics 2>/dev/null | python3 -m json.tool || echo "  Loader not running. Run: make demo"
+echo "─────────────────────────────────────────"

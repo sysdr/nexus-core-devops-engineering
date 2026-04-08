@@ -1,0 +1,12 @@
+[workspace]
+resolver = "2"
+members  = ["projection-engine", "loader"]
+
+[workspace.dependencies]
+flatbuffers  = "24.3"
+serde        = { version = "1", features = ["derive"] }
+tokio        = { version = "1", features = ["full"] }
+anyhow       = "1"
+tracing      = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+libbpf-rs    = "0.24"

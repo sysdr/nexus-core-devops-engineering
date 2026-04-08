@@ -1,0 +1,54 @@
+package nexuscore:projection@0.3.0;
+
+// ---------------------------------------------------------------------------
+// Projection Engine WIT — WASI Preview 3 / Component Model Async
+// ---------------------------------------------------------------------------
+
+interface types {
+    record event {
+        tenant-id:     u32,
+        projection-id: u32,
+        seq:           u64,
+        kind:          string,
+        payload:       list<u8>,
+    }
+
+    record projection {
+        tenant-id:     u32,
+        projection-id: u32,
+        version:       u64,
+        // Flatbuffer-encoded projection payload (max 4096 bytes)
+        data:          list<u8>,
+    }
+
+    record rebuild-request {
+        events:        list<event>,
+        snapshot-seq:  option<u64>,
+    }
+
+    variant engine-error {
+        payload-too-large(u32),
+        invalid-event(string),
+        encode-failed(string),
+    }
+}
+
+interface projection-engine {
+    use types.{event, projection, rebuild-request, engine-error};
+
+    // Fold a list of events into a new projection snapshot.
+    // Returns a Flatbuffer-encoded Projection or a typed error.
+    rebuild: func(req: rebuild-request) -> result<projection, engine-error>;
+
+    // Apply a single delta event to an existing projection.
+    // Used for incremental updates when the full event log is unavailable.
+    apply-delta: func(current: projection, evt: event) -> result<projection, engine-error>;
+
+    // Decode a raw Flatbuffer projection for inspection (debug/verify).
+    decode: func(data: list<u8>) -> result<string, engine-error>;
+}
+
+world nexuscore-projection {
+    export projection-engine;
+    import wasi:logging/logging@0.1.0;
+}
