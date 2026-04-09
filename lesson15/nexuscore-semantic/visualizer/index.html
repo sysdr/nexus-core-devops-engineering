@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NexusCore — Semantic Index Monitor</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--accent:#58a6ff;--green:#3fb950;
+        --orange:#d29922;--red:#f85149;--border:#30363d}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font:14px/1.6 monospace;padding:24px}
+  h1{font-size:18px;color:var(--accent);margin-bottom:16px}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .card{background:#161b22;border:1px solid var(--border);border-radius:8px;padding:16px}
+  .label{font-size:11px;color:#8b949e;text-transform:uppercase;letter-spacing:1px}
+  .val{font-size:28px;font-weight:700;margin-top:4px;color:var(--accent)}
+  .unit{font-size:12px;color:#8b949e}
+  canvas{background:#161b22;border:1px solid var(--border);border-radius:8px;width:100%}
+  .log{background:#161b22;border:1px solid var(--border);border-radius:8px;
+       padding:12px;height:160px;overflow-y:auto;font-size:12px;margin-top:12px}
+  .ts{color:#8b949e}.ok{color:var(--green)}.err{color:var(--red)}
+  h2{font-size:13px;color:#8b949e;margin:16px 0 8px}
+</style>
+</head>
+<body>
+<h1>NexusCore — Day 15: Semantic Index Monitor</h1>
+<div class="grid">
+  <div class="card"><div class="label">Dashboard Status</div>
+    <div class="val" id="status" style="color:var(--orange)">WAIT</div><div class="unit">metrics reachability</div></div>
+  <div class="card"><div class="label">Tweets Ingested</div>
+    <div class="val" id="ingested">0</div><div class="unit">total</div></div>
+  <div class="card"><div class="label">Throughput</div>
+    <div class="val" id="tput">0</div><div class="unit">tweets/sec</div></div>
+  <div class="card"><div class="label">Dropped</div>
+    <div class="val" id="drops" style="color:var(--green)">0</div>
+    <div class="unit">events</div></div>
+  <div class="card"><div class="label">Forwarded</div>
+    <div class="val" id="forwarded">0</div>
+    <div class="unit">events</div></div>
+</div>
+<h2>Ingestion Rate (60s window)</h2>
+<canvas id="chart" height="100"></canvas>
+<h2>Event Log</h2>
+<div class="log" id="log"></div>
+<script>
+const cv=document.getElementById('chart'),cx=cv.getContext('2d');
+const hist=new Array(60).fill(0);let lastRcv=0;
+function log(msg,cls='ok'){
+  const el=document.getElementById('log');
+  const ts=new Date().toISOString().slice(11,19);
+  const d=document.createElement('div');
+  d.innerHTML=`<span class="ts">[${ts}]</span> <span class="${cls}">${msg}</span>`;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+  if(el.children.length>200)el.removeChild(el.firstChild);
+}
+function draw(){
+  const W=cv.parentElement.clientWidth,H=100;cv.width=W;cv.height=H;
+  cx.clearRect(0,0,W,H);
+  const max=Math.max(...hist,100),bw=W/hist.length;
+  cx.strokeStyle='#21262d';cx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=H-(i/4)*(H-16)-8;
+    cx.beginPath();cx.moveTo(0,y);cx.lineTo(W,y);cx.stroke();
+    cx.fillStyle='#8b949e';cx.font='9px monospace';
+    cx.fillText(Math.round(max*i/4),2,y-2);}
+  hist.forEach((v,i)=>{const bh=(v/max)*(H-16);
+    const hue=200+(v/max)*60;
+    cx.fillStyle=`hsl(${hue},70%,50%)`;
+    cx.fillRect(i*bw+1,H-8-bh,bw-2,bh);});
+}
+async function poll(){
+  try{
+    const r=await fetch('http://localhost:9091/metrics');
+    const d=await r.json();
+    const st=document.getElementById('status');
+    st.textContent='LIVE';
+    st.style.color='var(--green)';
+    const delta=Math.max(0, d.received-lastRcv); lastRcv=d.received;
+    hist.push(delta);hist.shift();
+    document.getElementById('ingested').textContent=d.received.toLocaleString();
+    const windowSec = 5;
+    const recent = hist.slice(-windowSec).reduce((a,b)=>a+b,0);
+    document.getElementById('tput').textContent=Math.round(recent/windowSec).toLocaleString();
+    const de=document.getElementById('drops');
+    de.textContent=d.dropped.toLocaleString();
+    de.style.color=d.dropped>0?'var(--red)':'var(--green)';
+    document.getElementById('forwarded').textContent=d.forwarded.toLocaleString();
+    if(delta>0)log(`+${delta} tweets | fwd=${d.forwarded} drops=${d.dropped}`);
+    draw();
+  }catch(e){
+    const st=document.getElementById('status');
+    st.textContent='DOWN';
+    st.style.color='var(--red)';
+    log(`metrics unavailable: ${e.message}`,'err');
+  }
+}
+log('Monitor ready. Waiting for ingester on :9091...');
+setInterval(poll,1000);draw();
+</script>
+</body>
+</html>

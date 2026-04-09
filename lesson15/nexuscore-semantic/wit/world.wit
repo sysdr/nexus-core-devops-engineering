@@ -1,0 +1,17 @@
+package nexus:semantic@0.1.0;
+
+world semantic-index {
+  import wasi:nn/graph@0.2.0-rc-2024-10-28;
+  import wasi:nn/tensor@0.2.0-rc-2024-10-28;
+  import wasi:nn/inference@0.2.0-rc-2024-10-28;
+
+  export ingest: func(tweet-text: string) -> result<u64, string>;
+  export query:  func(query-text: string, top-k: u32) -> result<list<tuple<u64, f32>>, string>;
+  export stats:  func() -> index-stats;
+}
+
+record index-stats {
+  total-vectors: u64,
+  index-layers:  u32,
+  memory-bytes:  u64,
+}

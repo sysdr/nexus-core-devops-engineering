@@ -1,0 +1,25 @@
+# Lesson 15 workspace + build artifacts
+nexuscore-semantic/data/tweets.jsonl
+nexuscore-semantic/ebpf-ingester/bin/
+nexuscore-semantic/**/target/
+nexuscore-semantic/.cargo-target/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Virtualenv
+venv/
+.venv/
+
+# Node
+node_modules/
+
+# OS / editor
+.DS_Store
+.vscode/
+
+# Temp files
+/tmp/
+

@@ -1,0 +1,19 @@
+[package]
+name = "semantic-index"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+instant-distance = { version = "0.6", default-features = false }
+wit-bindgen      = { version = "0.30", features = ["realloc"] }
+serde            = { version = "1", default-features = false, features = ["derive"] }
+serde_json       = { version = "1", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level     = "z"
+lto           = "fat"
+codegen-units = 1
+strip         = true

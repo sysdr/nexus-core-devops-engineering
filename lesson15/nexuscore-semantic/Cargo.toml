@@ -1,0 +1,3 @@
+[workspace]
+members = ["semantic-index","host-runtime"]
+resolver = "2"
