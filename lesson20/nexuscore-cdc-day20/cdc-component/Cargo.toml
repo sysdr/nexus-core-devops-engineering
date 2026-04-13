@@ -1,0 +1,23 @@
+[package]
+name = "nexuscore-cdc-component"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+wit-bindgen = { version = "0.26", default-features = false, features = ["macros", "realloc"] }
+libm = "0.2"
+
+[build-dependencies]
+cc = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+dlmalloc = { version = "0.2", features = ["global"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

@@ -1,0 +1,28 @@
+package nexuscore:cdc@0.3.0;
+
+interface processor {
+    record cdc-event {
+        tenant-id: u64,
+        table-hash: list<u8>,
+        payload: list<u8>,
+        ts-ns: u64,
+    }
+    record qdrant-upsert {
+        collection: string,
+        point-id: string,
+        vector: list<f32>,
+        payload-json: string,
+        tenant-id: u64,
+    }
+    record delta-stats {
+        cosine-distance: f32,
+        skipped: bool,
+        tokens-processed: u32,
+    }
+    process: func(event: cdc-event) -> result<tuple<option<qdrant-upsert>, delta-stats>, string>;
+    flush-batch: func() -> u32;
+}
+
+world cdc-processor {
+    export processor;
+}

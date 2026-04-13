@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NexusCore CDC — Live Pipeline Monitor</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; background: #0d1117; color: #e6edf3; padding: 24px; }
+h1 { font-size: 14px; color: #7d8590; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 16px; }
+.card-label { font-size: 11px; color: #7d8590; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 8px; }
+.card-value { font-size: 28px; font-weight: 600; }
+.card-value.green { color: #3fb950; } .card-value.blue { color: #58a6ff; }
+.card-value.orange { color: #d29922; } .card-value.red { color: #f85149; }
+.pipeline { display: flex; align-items: center; gap: 0; margin: 24px 0; flex-wrap: wrap; }
+.stage { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px 16px; font-size: 12px; text-align: center; flex: 1; min-width: 90px; }
+.stage-name { color: #e6edf3; font-weight: 600; }
+.stage-rate { color: #7d8590; font-size: 10px; margin-top: 4px; }
+.arrow { color: #30363d; font-size: 18px; flex: 0; padding: 0 4px; }
+.log { background: #0d1117; border: 1px solid #21262d; border-radius: 6px; height: 220px; overflow-y: auto; padding: 12px; font-size: 11px; }
+.log-entry { color: #7d8590; margin-bottom: 2px; }
+.log-entry .time { color: #3fb950; } .log-entry .event { color: #58a6ff; } .log-entry .skip { color: #d29922; }
+.bar-chart { margin: 16px 0; }
+.bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.bar-label { width: 80px; font-size: 10px; color: #7d8590; text-align: right; flex-shrink: 0; }
+.bar-track { flex: 1; background: #161b22; border-radius: 3px; height: 16px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; transition: width 0.3s ease; }
+.bar-fill.latency { background: #388bfd; } .bar-fill.drop { background: #f85149; } .bar-fill.skip { background: #d29922; }
+</style>
+</head>
+<body>
+<h1>&#9679; NexusCore CDC Pipeline — Day 20</h1>
+<div class="grid">
+  <div class="card"><div class="card-label">Events / sec</div><div class="card-value blue" id="rate">0</div></div>
+  <div class="card"><div class="card-label">Qdrant Upserts (total)</div><div class="card-value green" id="upserts">0</div></div>
+  <div class="card"><div class="card-label">Delta Skips</div><div class="card-value orange" id="skips">0%</div></div>
+  <div class="card"><div class="card-label">Ring Drops</div><div class="card-value red" id="drops">0</div></div>
+  <div class="card"><div class="card-label">Avg Latency (µs)</div><div class="card-value blue" id="p99">—</div></div>
+  <div class="card"><div class="card-label">Wasm Pool</div><div class="card-value green" id="pool">OK</div></div>
+</div>
+<div class="pipeline">
+  <div class="stage"><div class="stage-name">SurrealDB</div><div class="stage-rate" id="s1-rate">0 w/s</div></div>
+  <div class="arrow">→</div>
+  <div class="stage"><div class="stage-name">eBPF uprobe</div><div class="stage-rate" id="s2-rate">0 ev/s</div></div>
+  <div class="arrow">→</div>
+  <div class="stage"><div class="stage-name">Ring Buffer</div><div class="stage-rate" id="s3-rate">0 KB/s</div></div>
+  <div class="arrow">→</div>
+  <div class="stage"><div class="stage-name">WASI CDC</div><div class="stage-rate" id="s4-rate">0 ms</div></div>
+  <div class="arrow">→</div>
+  <div class="stage"><div class="stage-name">Qdrant</div><div class="stage-rate" id="s5-rate">0 ups/s</div></div>
+</div>
+<div class="bar-chart">
+  <div class="bar-row"><span class="bar-label">Latency</span><div class="bar-track"><div class="bar-fill latency" id="bar-latency" style="width:0%"></div></div></div>
+  <div class="bar-row"><span class="bar-label">Drop rate</span><div class="bar-track"><div class="bar-fill drop" id="bar-drop" style="width:0%"></div></div></div>
+  <div class="bar-row"><span class="bar-label">Skip ratio</span><div class="bar-track"><div class="bar-fill skip" id="bar-skip" style="width:0%"></div></div></div>
+</div>
+<div class="log" id="log"></div>
+<script>
+let prev = { totalEvents: 0, totalUpserts: 0, dropped: 0 };
+
+function parseMetrics(text) {
+  const m = {};
+  text.split('\n').forEach(line => {
+    if (line.startsWith('#') || !line.trim()) return;
+    const match = line.match(/^(\w+)(?:\{([^}]*)\})?\s+([\d.eE+-]+)/);
+    if (match) m[match[1] + (match[2] ? '{' + match[2] + '}' : '')] = parseFloat(match[3]);
+  });
+  return m;
+}
+function sumMetric(metrics, prefix) {
+  return Object.entries(metrics).filter(([k]) => k.startsWith(prefix)).reduce((s, [, v]) => s + v, 0);
+}
+function addLog(type, msg) {
+  const log = document.getElementById('log');
+  const now = new Date().toISOString().split('T')[1].slice(0, 12);
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="time">${now}</span> <span class="${type}">${msg}</span>`;
+  log.prepend(div);
+  while (log.children.length > 100) log.removeChild(log.lastChild);
+}
+async function poll() {
+  try {
+    const res = await fetch('http://localhost:9090/metrics');
+    if (!res.ok) throw new Error('bad');
+    const text = await res.text();
+    const m = parseMetrics(text);
+    const totalEvents = sumMetric(m, 'cdc_events_total');
+    const totalUpserts = sumMetric(m, 'cdc_qdrant_upserts_total');
+    const dropped = m['cdc_ringbuf_lost_events_total'] || 0;
+    const sum = m['cdc_e2e_latency_us_sum'] || 0;
+    const cnt = m['cdc_e2e_latency_us_count'] || 0;
+    const avgLat = cnt > 0 ? Math.round(sum / cnt) : 0;
+
+    const rate = Math.round((totalEvents - prev.totalEvents) * 2);
+    const uRate = Math.round((totalUpserts - prev.totalUpserts) * 2);
+    const skipR = totalEvents > 0 ? Math.round((1 - totalUpserts / totalEvents) * 100) : 0;
+
+    document.getElementById('rate').textContent = rate.toLocaleString();
+    document.getElementById('upserts').textContent = Math.round(totalUpserts).toLocaleString();
+    document.getElementById('skips').textContent = skipR + '%';
+    document.getElementById('drops').textContent = String(Math.round(dropped));
+    document.getElementById('p99').textContent = avgLat > 0 ? avgLat + ' µs' : '—';
+
+    document.getElementById('s1-rate').textContent = rate + ' w/s';
+    document.getElementById('s2-rate').textContent = rate + ' ev/s';
+    document.getElementById('s3-rate').textContent = (rate * 400 / 1024).toFixed(1) + ' KB/s';
+    document.getElementById('s4-rate').textContent = (1000 / Math.max(rate, 1)).toFixed(2) + ' ms';
+    document.getElementById('s5-rate').textContent = uRate + ' ups/s';
+
+    document.getElementById('bar-latency').style.width = Math.min(rate / 10, 100) + '%';
+    document.getElementById('bar-drop').style.width = Math.min(dropped, 100) + '%';
+    document.getElementById('bar-skip').style.width = Math.min(skipR, 100) + '%';
+
+    if (rate > 0) addLog('event', `+${rate} events/s → ${uRate} upserts/s (${skipR}% δ-skipped)`);
+    prev = { totalEvents, totalUpserts, dropped };
+    document.getElementById('pool').textContent = 'OK';
+    document.getElementById('pool').parentElement.querySelector('.card-value').style.color = '#3fb950';
+  } catch (e) {
+    addLog('skip', 'metrics unreachable — start loader (scripts/start.sh)');
+    document.getElementById('pool').textContent = 'OFFLINE';
+    document.getElementById('pool').parentElement.querySelector('.card-value').style.color = '#f85149';
+  }
+}
+poll();
+setInterval(poll, 500);
+addLog('event', 'NexusCore CDC monitor connected');
+</script>
+</body>
+</html>

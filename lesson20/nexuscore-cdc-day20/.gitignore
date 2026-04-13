@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Go (lesson loader binary; keep loader/ sources tracked)
+nexuscore-loader
+
+# Rust / Wasm
+cdc-component/target/
+*.wasm
+
+# eBPF objects
+ebpf/*.o
+
+# Runtime / local
+.loader.pid
+loader.log
+*.log
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*~
+
+# Istio / mesh artifacts (if introduced)
+**/istio/
+**/istio-*/
+*istio*.yaml
+*istio*.yml
+
+# OS
+Thumbs.db

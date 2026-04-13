@@ -1,0 +1,6 @@
+# NexusCore lesson 20 — Python dependencies
+# build_lesson20.py uses only the Python 3.9+ standard library (pathlib, shutil, subprocess).
+# Pin tooling here when you add tests or formatters, for example:
+#
+# pytest>=8.0
+# ruff>=0.4.0
