@@ -1,0 +1,20 @@
+[kafka]
+brokers       = "localhost:9092"
+input_topic   = "nexuscore.events.raw"
+output_topic  = "nexuscore.events.tagged"
+consumer_group = "nexuscore-classifier"
+
+[wasm]
+# Max linear memory per tenant component (bytes)
+max_memory_bytes = 4194304  # 4 MB
+# Component warm pool size (homework: make this dynamic)
+warm_pool_size   = 256
+# Epoch interruption budget (microseconds) — prevents runaway classifiers
+epoch_budget_us  = 500
+
+[metrics]
+prometheus_port = 9090
+
+[ebpf]
+ring_buffer_size_mb = 16
+redpanda_port       = 9092

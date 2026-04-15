@@ -1,0 +1,51 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/
+*.code-workspace
+
+# Environment and secrets (never commit)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+venv/
+.venv/
+pip-wheel-metadata/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Rust / Cargo
+target/
+**/target/
+
+# Lesson / local build outputs
+*.log
+/tmp/nexuscore*.log
+
+# Istio / mesh artifacts (generated or local experiments)
+**/istio/
+**/istio-*/
+*istio*.yaml
+*istio*.yml
+
+# Docker
+*.tar

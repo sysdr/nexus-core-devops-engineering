@@ -1,0 +1,8 @@
+{"tenant":"tenant-001","event":"payment","amount":9500.0,"currency":"USD","seq":1}
+{"tenant":"tenant-002","event":"payment","amount":650.0,"currency":"USD","seq":2}
+{"tenant":"tenant-003","event":"session_end","churn_score":0.85,"seq":3}
+{"tenant":"tenant-004","event":"pageview","path":"/dashboard","seq":4}
+{"tenant":"tenant-005","event":"pageview","path":"/pricing","seq":5}
+{"tenant":"tenant-001","event":"payment","amount":120.0,"currency":"USD","seq":6}
+{"tenant":"tenant-002","event":"session_end","churn_score":0.4,"seq":7}
+{"tenant":"tenant-006","event":"payment","amount":10000.0,"currency":"USD","seq":8}

@@ -1,0 +1,4 @@
+# Python tooling for NexusCore DevOps lessons (optional).
+# Install: python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
+#
+# Add lesson-specific packages here as needed.

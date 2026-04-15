@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nexuscore-host",
+    "crates/nexuscore-dashboard",
+]
+
+[workspace.dependencies]
+tokio          = { version = "1.38", features = ["full"] }
+anyhow         = "1.0"
+tracing        = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+serde          = { version = "1.0", features = ["derive"] }
+serde_json     = "1.0"
+bytes          = "1.6"
+wasmtime       = { version = "22", features = ["component-model", "async"] }
+wasmtime-wasi  = "22"
+libbpf-rs      = "0.23"
+tokio-uring    = "0.5"
+crossbeam      = "0.8"
+parking_lot    = "0.12"
+metrics        = "0.22"
+metrics-exporter-prometheus = { version = "0.14", default-features = false, features = ["http-listener"] }

@@ -1,0 +1,52 @@
+package nexuscore:classifier@0.1.0;
+
+/// Real-time classification interface for NexusCore tenant components.
+/// Each Wasm guest implements this world and exports classify.
+interface classify {
+    /// A zero-copy view into a Redpanda Kafka record.
+    /// The host owns this resource; guests borrow it read-only.
+    resource record-view {
+        /// The tenant identifier extracted from the record header.
+        tenant-id: func() -> string;
+        /// Raw Kafka record payload bytes. Do NOT copy; iterate in place.
+        payload: func() -> list<u8>;
+        /// Kernel arrival timestamp from BPF ringbuf (nanoseconds since boot).
+        arrival-timestamp-ns: func() -> u64;
+        /// Redpanda partition id.
+        partition: func() -> s32;
+        /// Kafka record offset.
+        offset: func() -> s64;
+    }
+
+    /// Semantic tag assigned by the classifier.
+    enum tag {
+        /// Potential fraudulent activity detected.
+        fraud-signal,
+        /// User showing churn indicators.
+        churn-risk,
+        /// High-value event (upsell or purchase signal).
+        high-value,
+        /// Statistical anomaly in the event stream.
+        anomaly,
+        /// No special classification; allow through.
+        pass,
+    }
+
+    /// Classification result returned to the host.
+    record classification {
+        /// The assigned semantic tag.
+        tag: tag,
+        /// Classifier confidence score [0.0, 1.0].
+        confidence: float32,
+        /// Time spent inside classify-record (nanoseconds).
+        classify-latency-ns: u64,
+    }
+
+    /// Core classification entry point. Called once per Kafka record.
+    classify-record: func(rec: borrow<record-view>) -> classification;
+}
+
+/// The Wasm component world. Tenants export classify.
+world classifier-component {
+    export classify;
+}

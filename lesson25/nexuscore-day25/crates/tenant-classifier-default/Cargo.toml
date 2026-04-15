@@ -1,0 +1,18 @@
+[package]
+name    = "tenant-classifier-default"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+# No std — Wasm components run in a shared-nothing environment.
+# We link only against wasi:io for the RecordView resource callbacks.
+[profile.release]
+opt-level = 3
+strip     = true
+lto       = true
+panic     = "abort"
+
+[dependencies]
+wit-bindgen = { version = "0.25", features = ["realloc"] }
