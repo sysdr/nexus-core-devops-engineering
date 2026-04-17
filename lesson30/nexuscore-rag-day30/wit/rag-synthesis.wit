@@ -1,0 +1,60 @@
+package nexuscore:rag@0.3.0;
+
+/// Core data types shared across the RAG pipeline
+interface types {
+  /// A retrieved document chunk with its corpus location
+  record chunk {
+    id: u32,
+    corpus-offset: u64,
+    byte-length: u32,
+    cosine-score: f32,
+  }
+
+  /// A grounded synthesis output with hallucination score
+  record grounded-token {
+    text: string,
+    citation-ids: list<u32>,
+    grounding-score: f32,
+  }
+
+  /// Per-tenant configuration, written by eBPF control plane
+  record tenant-config {
+    tenant-id: u32,
+    top-k: u32,
+    max-chunk-bytes: u32,
+    synthesis-budget-ms: u32,
+  }
+}
+
+/// Retriever: vector similarity search over mmap'd corpus
+interface retriever {
+  use types.{chunk, tenant-config};
+
+  /// Embed raw query bytes into f32 vector (MiniLM-L6-v2 compatible, dim=384)
+  embed-query: func(query-bytes: list<u8>) -> list<f32>;
+
+  /// Top-K cosine similarity retrieval against pre-built index
+  retrieve: func(
+    query-embedding: list<f32>,
+    config: tenant-config,
+  ) -> list<chunk>;
+}
+
+/// Synthesizer: grounded token generation from retrieved chunks
+interface synthesizer {
+  use types.{chunk, grounded-token, tenant-config};
+
+  /// Stream synthesis — yields grounded-token values as they are produced.
+  /// In WASI Preview 3, this is a native async stream<grounded-token>.
+  synthesize: func(
+    query: string,
+    chunks: list<chunk>,
+    config: tenant-config,
+  ) -> list<grounded-token>;
+}
+
+/// Top-level world exported by the compiled Wasm component
+world rag-pipeline {
+  export retriever;
+  export synthesizer;
+}

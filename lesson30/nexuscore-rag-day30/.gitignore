@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+env/
+.env
+.env.*
+!.env.example
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Rust / Cargo
+target/
+**/target/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+*.tmp
+.cache/
+tmp/
+temp/
+
+# eBPF / build artifacts
+*.o
+*.skel.h
+
+# Secrets (never commit)
+*.pem
+*.key
+secrets/
+credentials.json
+
+# Istio / K8s local dumps (if added)
+**/istio/**
+*istio*.yaml
+*istio*.yml

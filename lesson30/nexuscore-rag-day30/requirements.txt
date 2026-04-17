@@ -1,0 +1,6 @@
+# Lesson 30 — Python used only for corpus generation (stdlib-only).
+# Pin versions here if you add real dependencies later.
+#
+# Optional tooling (uncomment as needed):
+# pytest>=8.0.0
+# ruff>=0.4.0

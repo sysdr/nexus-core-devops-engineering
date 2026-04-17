@@ -1,0 +1,19 @@
+[package]
+name = "rag-component"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# wit-bindgen generates WASI P3 bindings from our .wit file
+wit-bindgen = "0.28"
+# No_std-compatible float ops for the cosine similarity hot path
+libm = "0.2"
+
+[profile.release]
+opt-level = "z"      # Size-optimize: smaller Wasm = faster instantiation
+lto = true
+codegen-units = 1
+strip = true

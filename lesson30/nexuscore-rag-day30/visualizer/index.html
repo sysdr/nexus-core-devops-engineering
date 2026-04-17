@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NexusCore RAG — Live Metrics | Day 30</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --green: #3fb950; --blue: #58a6ff; --orange: #e3b341;
+    --red: #f85149; --text: #c9d1d9; --dim: #8b949e;
+    --font: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); padding: 20px; }
+  h1 { color: var(--blue); font-size: 1.2rem; margin-bottom: 4px; }
+  .subtitle { color: var(--dim); font-size: 0.75rem; margin-bottom: 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card-label { font-size: 0.7rem; color: var(--dim); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.1em; }
+  .card-value { font-size: 1.8rem; font-weight: bold; }
+  .green { color: var(--green); } .blue { color: var(--blue); }
+  .orange { color: var(--orange); } .red { color: var(--red); }
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .section-title { font-size: 0.8rem; color: var(--dim); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.1em; }
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 0.75rem; }
+  .bar-label { width: 90px; color: var(--dim); }
+  .bar-bg { flex: 1; background: #21262d; border-radius: 3px; height: 14px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+  .bar-val { width: 60px; text-align: right; color: var(--text); }
+  #log { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+         height: 220px; overflow-y: auto; font-size: 0.72rem; line-height: 1.6; }
+  .log-ok { color: var(--green); } .log-warn { color: var(--orange); } .log-err { color: var(--red); }
+  .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green);
+                animation: pulse 1.5s infinite; margin-right: 6px; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  canvas { width: 100%; height: 120px; }
+</style>
+</head>
+<body>
+<h1>⬡ NexusCore RAG Live Metrics — Day 30</h1>
+<p class="subtitle"><span class="status-dot"></span>Streaming synthesis &amp; grounding · WASI 0.3 · eBPF CO-RE · Simulated</p>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-label">Throughput</div>
+    <div class="card-value green" id="rps">0</div>
+    <div style="font-size:0.7rem;color:var(--dim);margin-top:4px">req/sec</div>
+  </div>
+  <div class="card">
+    <div class="card-label">P99 Latency</div>
+    <div class="card-value blue" id="p99">0</div>
+    <div style="font-size:0.7rem;color:var(--dim);margin-top:4px">µs</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Grounding Score</div>
+    <div class="card-value orange" id="grounding">0.00</div>
+    <div style="font-size:0.7rem;color:var(--dim);margin-top:4px">mean (0–1)</div>
+  </div>
+  <div class="card">
+    <div class="card-label">Active Tenants</div>
+    <div class="card-value" id="tenants">0</div>
+    <div style="font-size:0.7rem;color:var(--dim);margin-top:4px">wasm instances</div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">eBPF Latency Histogram (read() syscall log2-µs buckets)</div>
+  <div id="hist"></div>
+</div>
+
+<div class="section">
+  <div class="section-title">Pipeline Stage Breakdown</div>
+  <div class="bar-row"><div class="bar-label">Embed</div>
+    <div class="bar-bg"><div class="bar-fill green" id="b-embed" style="width:0%"></div></div>
+    <div class="bar-val" id="v-embed">0µs</div></div>
+  <div class="bar-row"><div class="bar-label">Retrieve</div>
+    <div class="bar-bg"><div class="bar-fill blue" id="b-ret" style="width:0%"></div></div>
+    <div class="bar-val" id="v-ret">0µs</div></div>
+  <div class="bar-row"><div class="bar-label">Synthesize</div>
+    <div class="bar-bg"><div class="bar-fill orange" id="b-syn" style="width:0%"></div></div>
+    <div class="bar-val" id="v-syn">0µs</div></div>
+  <div class="bar-row"><div class="bar-label">Ground</div>
+    <div class="bar-bg"><div class="bar-fill" style="background:#a371f7" id="b-gnd"></div></div>
+    <div class="bar-val" id="v-gnd">0µs</div></div>
+</div>
+
+<div id="log"><span class="log-ok">[NexusCore]</span> Dashboard initialized. Waiting for metrics stream...<br></div>
+
+<script>
+const $ = id => document.getElementById(id);
+let totalReqs = 0, t0 = Date.now();
+const latencies = [];
+
+// Simulated eBPF histogram buckets (log2 µs)
+const histBuckets = Array(14).fill(0);
+const histLabels  = ['1','2','4','8','16','32','64','128','256','512','1ms','2ms','4ms','8ms'];
+const histColors  = ['#3fb950','#3fb950','#3fb950','#58a6ff','#58a6ff','#58a6ff',
+                     '#58a6ff','#e3b341','#e3b341','#e3b341','#f85149','#f85149','#f85149','#f85149'];
+
+function renderHist() {
+  const max = Math.max(...histBuckets, 1);
+  let html = '';
+  for (let i = 0; i < histBuckets.length; i++) {
+    const pct = (histBuckets[i] / max * 100).toFixed(1);
+    html += `<div class="bar-row">
+      <div class="bar-label">${histLabels[i]}µs</div>
+      <div class="bar-bg"><div class="bar-fill" style="width:${pct}%;background:${histColors[i]}"></div></div>
+      <div class="bar-val">${histBuckets[i]}</div>
+    </div>`;
+  }
+  $('hist').innerHTML = html;
+}
+
+function addLog(msg, cls='log-ok') {
+  const log = $('log');
+  const now = new Date().toISOString().substr(11,12);
+  log.innerHTML += `<span class="${cls}">[${now}]</span> ${msg}<br>`;
+  log.scrollTop = log.scrollHeight;
+  // Keep last 200 lines
+  const lines = log.children.length + log.innerHTML.split('<br>').length;
+  if (lines > 200) log.innerHTML = log.innerHTML.split('<br>').slice(-200).join('<br>');
+}
+
+function simulateTick() {
+  const n = 8 + Math.floor(Math.random() * 12); // 8-20 requests per tick
+  for (let i = 0; i < n; i++) {
+    const embedUs  = 50 + Math.random() * 150;
+    const retUs    = 200 + Math.random() * 600;
+    const synUs    = 500 + Math.random() * 1500;
+    const gndUs    = 20 + Math.random() * 80;
+    const totalUs  = embedUs + retUs + synUs + gndUs;
+    latencies.push(totalUs);
+    if (latencies.length > 2000) latencies.shift();
+
+    // Bucket into log2 histogram
+    let bucket = 0, tmp = totalUs;
+    while (tmp > 1 && bucket < 13) { tmp /= 2; bucket++; }
+    histBuckets[bucket]++;
+
+    // Inject occasional slow request
+    if (Math.random() < 0.005) {
+      histBuckets[Math.min(12, bucket + 4)]++;
+    }
+  }
+  totalReqs += n;
+
+  // RPS
+  const elapsed = (Date.now() - t0) / 1000;
+  $('rps').textContent = (totalReqs / elapsed).toFixed(0);
+
+  // P99
+  const sorted = [...latencies].sort((a,b)=>a-b);
+  const p99 = sorted[Math.floor(sorted.length * 0.99)] || 0;
+  $('p99').textContent = p99.toFixed(0);
+  $('p99').className = 'card-value ' + (p99 < 5000 ? 'blue' : p99 < 20000 ? 'orange' : 'red');
+
+  // Grounding score (drifts slowly)
+  const gs = 0.72 + 0.05 * Math.sin(elapsed / 30);
+  $('grounding').textContent = gs.toFixed(3);
+  $('grounding').className = 'card-value ' + (gs > 0.75 ? 'green' : gs > 0.5 ? 'orange' : 'red');
+
+  // Tenants
+  const at = 40 + Math.floor(Math.random() * 20);
+  $('tenants').textContent = at;
+
+  // Stage bars (% of total)
+  const embedMean = 50+Math.random()*150, retMean = 200+Math.random()*600;
+  const synMean = 500+Math.random()*1500, gndMean = 20+Math.random()*80;
+  const total = embedMean+retMean+synMean+gndMean;
+  $('b-embed').style.width = (embedMean/total*100).toFixed(1)+'%'; $('v-embed').textContent = embedMean.toFixed(0)+'µs';
+  $('b-ret').style.width   = (retMean/total*100).toFixed(1)+'%';   $('v-ret').textContent   = retMean.toFixed(0)+'µs';
+  $('b-syn').style.width   = (synMean/total*100).toFixed(1)+'%';   $('v-syn').textContent   = synMean.toFixed(0)+'µs';
+  $('b-gnd').style.width   = (gndMean/total*100).toFixed(1)+'%';   $('v-gnd').textContent   = gndMean.toFixed(0)+'µs';
+
+  renderHist();
+
+  // Log entries
+  if (Math.random() < 0.3) {
+    const tid = Math.floor(Math.random()*1000);
+    const lat = (300+Math.random()*1500).toFixed(0);
+    const gs2 = (0.65+Math.random()*0.33).toFixed(3);
+    const cls = gs2 > 0.75 ? 'log-ok' : gs2 > 0.5 ? 'log-warn' : 'log-err';
+    addLog(`T${String(tid).padStart(4,'0')} lat=${lat}µs grounding=${gs2} k=16 chunks=8`, cls);
+  }
+  if (Math.random() < 0.02) {
+    addLog('eBPF: tenant I/O budget exceeded → top-k reduced 16→8', 'log-warn');
+  }
+}
+
+renderHist();
+addLog('Corpus mmap: 1024 chunks × 512 bytes = 524,288 bytes');
+addLog('Wasm instances: pool initialized, max=50');
+addLog('eBPF probe attached: tracepoint/syscalls/sys_{enter,exit}_read');
+
+setInterval(simulateTick, 250);
+</script>
+</body>
+</html>
