@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NexusCore Day 35 — ReAct Agent Visualizer</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --orange: #d29922;
+    --red: #f85149;
+    --text: #c9d1d9;
+    --muted: #6e7681;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; }
+  header { border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  .logo { color: var(--blue); font-size: 15px; font-weight: 700; letter-spacing: 0.05em; }
+  .badge { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; color: var(--muted); font-size: 11px; }
+  .grid { display: grid; grid-template-columns: 1fr 320px; gap: 0; height: calc(100vh - 53px); }
+  .main-panel { padding: 20px 24px; overflow-y: auto; border-right: 1px solid var(--border); }
+  .side-panel { padding: 16px; overflow-y: auto; }
+  h3 { color: var(--muted); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 12px; }
+  .step-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; margin-bottom: 10px; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .step-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .step-num { background: var(--blue); color: #000; border-radius: 3px; padding: 1px 6px; font-size: 11px; font-weight: 700; }
+  .thought { color: var(--text); margin-bottom: 6px; }
+  .thought::before { content: "Thought "; color: var(--blue); font-weight: 600; }
+  .action { color: var(--orange); margin-bottom: 6px; }
+  .action::before { content: "Action "; color: var(--orange); font-weight: 600; }
+  .obs { color: var(--muted); margin-bottom: 6px; font-size: 12px; }
+  .obs::before { content: "Observation "; color: var(--green); font-weight: 600; }
+  .final { color: var(--green); font-weight: 600; }
+  .final::before { content: "✓ Final Answer "; color: var(--green); }
+  .metric-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .metric-label { color: var(--muted); font-size: 11px; }
+  .metric-value { color: var(--text); font-weight: 600; }
+  .metric-value.good { color: var(--green); }
+  .metric-value.warn { color: var(--orange); }
+  .metric-value.bad  { color: var(--red); }
+  .latency-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .latency-fill { height: 100%; background: linear-gradient(90deg, var(--green), var(--blue)); border-radius: 2px; transition: width 0.4s; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  #query-display { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; margin-bottom: 16px; color: var(--blue); }
+  #query-display::before { content: "Query: "; color: var(--muted); }
+  .empty-state { text-align: center; color: var(--muted); padding: 60px 20px; }
+  .empty-icon { font-size: 32px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">⬡ NexusCore</div>
+  <div class="badge">Day 35</div>
+  <div class="badge">ReAct Agent</div>
+  <div style="flex:1"></div>
+  <div class="status-dot active" id="status-dot"></div>
+  <span style="color:var(--muted);font-size:11px;margin-left:6px" id="status-text">Waiting for agent...</span>
+</header>
+<div class="grid">
+  <div class="main-panel">
+    <div id="query-display" style="display:none"></div>
+    <div id="steps-container">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-icon">🤖</div>
+        <div>Run <span style="color:var(--blue)">./scripts/start.sh</span> then <span style="color:var(--blue)">./scripts/demo.sh</span> — live data from <span style="color:var(--muted)">http://127.0.0.1:8080/api/viz</span> while the host runs; after each run the host writes <span style="color:var(--muted)">./last-viz.json</span> so this page keeps the last run.</div>
+        <div style="margin-top:8px;font-size:11px">Sidebar still merges Prometheus histograms from <span style="color:var(--muted)">/metrics</span> when the host is up.</div>
+      </div>
+    </div>
+  </div>
+  <div class="side-panel">
+    <h3>Metrics</h3>
+    <div class="metric-row"><span class="metric-label">Steps completed</span><span class="metric-value" id="m-steps">—</span></div>
+    <div class="metric-row"><span class="metric-label">Avg step latency</span><span class="metric-value good" id="m-avg-step">—</span></div>
+    <div class="metric-row"><span class="metric-label">Total elapsed</span><span class="metric-value" id="m-elapsed">—</span></div>
+    <div class="metric-row"><span class="metric-label">Arena resets</span><span class="metric-value" id="m-arena">—</span></div>
+    <div class="metric-row"><span class="metric-label">eBPF p99 latency</span><span class="metric-value" id="m-ebpf">—</span></div>
+    <div style="margin-top:8px">
+      <div class="metric-label" style="margin-bottom:4px">Step latency bar</div>
+      <div class="latency-bar"><div class="latency-fill" id="latency-fill" style="width:0%"></div></div>
+    </div>
+
+    <h3 style="margin-top:20px">Architecture</h3>
+    <div style="color:var(--muted);font-size:11px;line-height:1.7">
+      <div>WASI 0.3 Component</div>
+      <div style="padding-left:10px;color:var(--border)">↓ wasi:http</div>
+      <div>Tokio Async Host</div>
+      <div style="padding-left:10px;color:var(--border)">↓ TCP</div>
+      <div>eBPF kprobe</div>
+      <div style="padding-left:10px;color:var(--border)">↓ ringbuf</div>
+      <div>Prometheus /metrics</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const steps_el = document.getElementById("steps-container");
+  const query_el = document.getElementById("query-display");
+  const empty_el = document.getElementById("empty-state");
+  const VIZ_URL = "http://127.0.0.1:8080/api/viz";
+  const SNAPSHOT_URL = "./last-viz.json";
+
+  function esc(s) {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderFromViz(data) {
+    const steps = data.steps || [];
+    const hasRun = data.query || steps.length || data.running || data.error;
+
+    if (!hasRun) {
+      empty_el.style.display = "";
+      query_el.style.display = "none";
+      document.getElementById("status-text").textContent = "Waiting for agent…";
+      document.getElementById("status-dot").classList.add("active");
+      return;
+    }
+
+    empty_el.style.display = "none";
+    query_el.style.display = "";
+    query_el.textContent = data.query || "";
+
+    let html = "";
+    steps.forEach((st, idx) => {
+      const n = idx + 1;
+      html += `<div class="step-card"><div class="step-header"><span class="step-num">STEP ${n}</span>`;
+      if (st.latency_ms != null) html += `<span style="margin-left:auto;color:var(--muted);font-size:11px">${Number(st.latency_ms).toFixed(0)} ms</span>`;
+      html += `</div>`;
+      html += `<div class="thought">${esc(st.thought)}</div>`;
+      if (st.action) {
+        const inp = st.action_input || "";
+        html += `<div class="action">${esc(st.action)}[${esc(inp)}]</div>`;
+      }
+      if (st.observation) html += `<div class="obs">${esc(st.observation)}</div>`;
+      if (st.final_answer) html += `<div class="final">${esc(st.final_answer)}</div>`;
+      html += `</div>`;
+    });
+
+    if (data.error) {
+      html += `<div class="step-card" style="border-color:var(--red)"><div style="color:var(--red)">Error: ${esc(data.error)}</div></div>`;
+    }
+
+    steps_el.innerHTML = html;
+    const last = steps_el.lastElementChild;
+    if (last) last.scrollIntoView({ behavior: "smooth" });
+
+    const nSteps = steps.length;
+    document.getElementById("m-steps").textContent = String(nSteps);
+
+    if (nSteps > 0) {
+      let sum = 0;
+      steps.forEach((st) => { sum += Number(st.latency_ms) || 0; });
+      const avg = sum / nSteps;
+      const avgEl = document.getElementById("m-avg-step");
+      avgEl.textContent = avg.toFixed(0) + " ms";
+      avgEl.className = "metric-value " + (avg < 1000 ? "good" : avg < 2000 ? "warn" : "bad");
+      document.getElementById("latency-fill").style.width = Math.min(100, (avg / 3000) * 100) + "%";
+    }
+
+    if (data.total_elapsed_s != null && data.total_elapsed_s >= 0) {
+      document.getElementById("m-elapsed").textContent = Number(data.total_elapsed_s).toFixed(1) + " s";
+    }
+
+    const done = !data.running && (steps.some((s) => s.final_answer) || data.error);
+    if (data.running) {
+      document.getElementById("status-text").textContent = "Running…";
+      document.getElementById("status-dot").classList.add("active");
+    } else if (done) {
+      document.getElementById("status-dot").classList.remove("active");
+      document.getElementById("status-text").textContent = data.error ? "Failed" : "Complete";
+      document.getElementById("m-arena").textContent = steps.some((s) => s.final_answer) ? "1" : "0";
+    }
+
+    document.getElementById("m-ebpf").textContent = "—";
+  }
+
+  async function pollViz() {
+    let data = null;
+    try {
+      const res = await fetch(VIZ_URL, { cache: "no-store" });
+      if (res.ok) data = await res.json();
+    } catch (_) {}
+    if (data === null) {
+      try {
+        const res = await fetch(SNAPSHOT_URL, { cache: "no-store" });
+        if (res.ok) data = await res.json();
+      } catch (_) {}
+    }
+    if (data !== null) renderFromViz(data);
+    else renderFromViz({});
+  }
+
+  setInterval(pollViz, 400);
+  pollViz();
+</script>
+</body>
+</html>

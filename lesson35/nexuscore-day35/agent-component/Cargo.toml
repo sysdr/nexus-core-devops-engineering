@@ -1,0 +1,33 @@
+[package]
+name = "nexuscore-agent"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# Runtime for pre-generated `src/bindings.rs` (see `cargo component build --release`).
+wit-bindgen = { version = "0.28", default-features = false, features = ["realloc"] }
+wit-bindgen-rt = "0.28"
+wasi = { version = "0.13", features = ["std"] }
+serde_json = { version = "1", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+[package.metadata.component]
+package = "nexuscore:agent"
+
+# Vendored WASI WIT packages (from bytecodealliance/wasi-http + transitive deps)
+[package.metadata.component.target.dependencies]
+"wasi:http" = { path = "wit/deps/http" }
+"wasi:clocks" = { path = "wit/deps/clocks" }
+"wasi:io" = { path = "wit/deps/io" }
+"wasi:cli" = { path = "wit/deps/cli" }
+"wasi:random" = { path = "wit/deps/random" }
+"wasi:filesystem" = { path = "wit/deps/filesystem" }
+"wasi:sockets" = { path = "wit/deps/sockets" }
