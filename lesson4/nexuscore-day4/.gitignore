@@ -1,0 +1,40 @@
+## OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+## Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+## Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.venv/
+venv/
+
+## Rust
+target/
+
+## Go
+*.exe
+*.test
+*.out
+
+## NexusCore lesson artifacts
+**/nexuscore-ctrl
+**/*.bpf.o
+
+## Cursor
+.cursor/

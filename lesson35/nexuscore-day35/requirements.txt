@@ -1,5 +1,0 @@
-# Mock LLM / mock search use the Python standard library only (3.10+).
-#
-# Optional dev tools:
-# pytest>=8.0.0
-# ruff>=0.4.0

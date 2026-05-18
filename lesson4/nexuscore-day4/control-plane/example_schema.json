@@ -1,0 +1,10 @@
+{
+  "tenant_id": 1001,
+  "version":   1,
+  "fields": [
+    { "name": "timestamp", "type": "u64",  "offset": 0  },
+    { "name": "device_id", "type": "u64",  "offset": 8  },
+    { "name": "temp_c",    "type": "f64",  "offset": 16 },
+    { "name": "location",  "type": "str",  "offset": 24 }
+  ]
+}

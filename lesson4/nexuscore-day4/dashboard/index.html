@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NexusCore · Lesson 4 Dashboard</title>
+  <style>
+    :root{
+      --bg:#070b12; --panel:#0f1629; --panel2:#111b33; --border:#243047;
+      --green:#34d399; --blue:#60a5fa; --orange:#fbbf24; --red:#f87171;
+      --text:#e8edf7; --muted:#8b9ab8; --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    *{margin:0; padding:0; box-sizing:border-box;}
+    body{
+      background: radial-gradient(900px 450px at 10% -10%, rgba(52,211,153,0.10), transparent),
+                  radial-gradient(700px 360px at 90% 0%, rgba(96,165,250,0.08), transparent),
+                  var(--bg);
+      color:var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      padding:24px;
+      min-height:100vh;
+    }
+    header{
+      display:flex; flex-wrap:wrap; gap:16px; align-items:flex-start; justify-content:space-between;
+      padding-bottom:18px; margin-bottom:18px; border-bottom:1px solid var(--border);
+    }
+    .brand{
+      display:flex; gap:12px; align-items:center;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background:var(--green);
+      box-shadow:0 0 0 4px rgba(52,211,153,0.16);
+      animation:pulse 2s ease-in-out infinite;
+      margin-top:5px;
+    }
+    @keyframes pulse{50%{opacity:0.6}}
+    .title{
+      font-family:var(--mono);
+      letter-spacing:0.12em;
+      font-weight:700;
+    }
+    .hint{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      margin-top:4px;
+      word-break:break-word;
+      max-width:720px;
+    }
+    .pill{
+      border:1px solid var(--border);
+      background:var(--panel);
+      border-radius:999px;
+      padding:10px 14px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      text-align:right;
+      min-width:260px;
+    }
+    .pill strong{color:var(--green)}
+
+    .controls{display:flex; gap:10px; flex-wrap:wrap; margin:10px 0 18px;}
+    button{
+      font-family:var(--mono);
+      font-size:12px;
+      padding:10px 14px;
+      border-radius:10px;
+      border:1px solid var(--border);
+      background:var(--panel2);
+      color:var(--text);
+      cursor:pointer;
+    }
+    button.primary{border-color:rgba(52,211,153,0.55); background:rgba(52,211,153,0.10); color:var(--green);}
+    .controls button:hover{border-color:var(--green);}
+
+    .kpis{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap:12px;
+      margin-bottom:16px;
+    }
+    .kpi{
+      border:1px solid var(--border);
+      border-radius:14px;
+      background:linear-gradient(145deg, var(--panel) 0%, var(--panel2) 100%);
+      padding:14px 16px;
+    }
+    .kpi .label{
+      font-family:var(--mono);
+      color:var(--muted);
+      font-size:11px;
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      margin-bottom:6px;
+    }
+    .kpi .value{
+      font-family:var(--mono);
+      font-size:26px;
+      font-weight:700;
+      font-variant-numeric: tabular-nums;
+      line-height:1.1;
+    }
+    .value.blue{color:var(--blue)}
+    .value.orange{color:var(--orange)}
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr 0.8fr;
+      gap:16px;
+      margin-bottom:16px;
+    }
+    @media (max-width: 950px){ .grid{grid-template-columns:1fr;} }
+
+    .panel{
+      border:1px solid var(--border);
+      background:var(--panel);
+      border-radius:14px;
+      padding:16px;
+    }
+    .panel h3{
+      font-family:var(--mono);
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:0.08em;
+      font-size:11px;
+      margin-bottom:12px;
+    }
+    .metric{
+      display:flex; justify-content:space-between; align-items:baseline;
+      padding:8px 0;
+      border-bottom:1px solid rgba(36,48,71,0.6);
+      gap:12px;
+      font-size:14px;
+    }
+    .metric:last-child{border-bottom:none;}
+    .metric span:first-child{color:var(--muted)}
+    .metric .v{
+      font-family:var(--mono);
+      font-weight:700;
+      font-variant-numeric: tabular-nums;
+      text-align:right;
+    }
+    .v.green{color:var(--green)}
+    .v.warn{color:var(--orange)}
+    .v.err{color:var(--red)}
+    .v.info{color:var(--blue)}
+
+    .list{
+      font-family:var(--mono);
+      font-size:12px;
+    }
+    .table-head{
+      display:grid;
+      grid-template-columns: 88px 70px 1fr 90px;
+      gap:8px;
+      color:var(--muted);
+      border-bottom:1px solid var(--border);
+      padding:8px 0;
+      text-transform:uppercase;
+      letter-spacing:0.06em;
+      font-size:11px;
+    }
+    .row{
+      display:grid;
+      grid-template-columns: 88px 70px 1fr 90px;
+      gap:8px;
+      align-items:center;
+      padding:10px 0;
+      border-bottom:1px solid rgba(36,48,71,0.6);
+    }
+    .row:last-child{border-bottom:none;}
+    .badge{
+      display:inline-block;
+      border-radius:8px;
+      padding:6px 10px;
+      font-family:var(--mono);
+      font-weight:700;
+      font-size:11px;
+      width: fit-content;
+    }
+    .badge.active{background:rgba(52,211,153,0.12); color:var(--green);}
+    .badge.pending{background:rgba(251,191,36,0.12); color:var(--orange);}
+    .badge.draining{background:rgba(96,165,250,0.12); color:var(--blue);}
+    .chip{
+      display:inline-block;
+      border:1px solid rgba(96,165,250,0.25);
+      background:rgba(96,165,250,0.07);
+      color:var(--blue);
+      padding:3px 8px;
+      border-radius:999px;
+      font-size:10px;
+      margin:2px;
+      font-family:var(--mono);
+    }
+    canvas{width:100%; height:140px; border-radius:12px; background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0));}
+    .log{
+      font-family:var(--mono);
+      font-size:11px;
+      color:var(--text);
+      line-height:1.7;
+      height:200px;
+      overflow:auto;
+      border-radius:12px;
+      border:1px solid var(--border);
+      padding:12px;
+      background:#050810;
+    }
+    .log-entry{display:flex; gap:10px; flex-wrap:wrap;}
+    .log-ts{color:var(--muted); min-width:86px;}
+    .log-lvl{min-width:52px; font-weight:800;}
+    .log-lvl.INFO{color:var(--blue)}
+    .log-lvl.SCHEMA{color:var(--green)}
+    .log-lvl.WARN{color:var(--orange)}
+    .log-lvl.XDP{color:#c4b5fd}
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="brand">
+        <div class="dot" aria-hidden="true"></div>
+        <div>
+          <div class="title">NEXUSCORE</div>
+          <div class="hint">Lesson 4 dashboard · separate page (metrics seeded non-zero on load)</div>
+        </div>
+      </div>
+    </div>
+    <div class="pill">
+      <strong>Live</strong> demo telemetry<br>
+      <span>Last updated: <span id="last-updated">—</span></span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button class="primary" type="button" onclick="pushRandomSchema()">Push schema update</button>
+    <button type="button" onclick="addTenant()">Add tenant</button>
+    <button type="button" onclick="runDemoBurst()">Run demo burst</button>
+    <button type="button" onclick="togglePause()" id="pauseBtn">Pause</button>
+    <button type="button" onclick="clearLog()">Clear log</button>
+  </div>
+
+  <div class="kpis" aria-label="Top metrics">
+    <div class="kpi"><div class="label">XDP classified / sec</div><div class="value" id="kpi-xdp">1,200,000</div></div>
+    <div class="kpi"><div class="label">Frames processed</div><div class="value blue" id="kpi-frames">26,667</div></div>
+    <div class="kpi"><div class="label">Schema updates pushed</div><div class="value orange" id="kpi-schema">3</div></div>
+    <div class="kpi"><div class="label">Active tenants</div><div class="value" id="kpi-tenants">3</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h3>Metrics (simulated telemetry)</h3>
+      <div class="metric"><span>XDP classified/s</span><span class="v green" id="xdp-rate">1,200,000</span></div>
+      <div class="metric"><span>Schema lookup p99</span><span class="v info" id="lookup-p99">165 ns</span></div>
+      <div class="metric"><span>TLB miss rate</span><span class="v warn" id="tlb-rate">0.215%</span></div>
+      <div class="metric"><span>BPF map entries</span><span class="v green" id="map-entries">3</span></div>
+      <div class="metric"><span>Ring buffer usage</span><span class="v green" id="ring-usage">12%</span></div>
+      <div class="metric"><span>Schema updates pushed</span><span class="v orange" id="schema-updates">3</span></div>
+      <div class="metric"><span>Frames processed</span><span class="v info" id="frames-processed">26,667</span></div>
+      <div class="metric"><span>Parse errors</span><span class="v err" id="parse-errors">2</span></div>
+      <div class="metric"><span>Version mismatches</span><span class="v warn" id="ver-mismatches">1</span></div>
+      <div class="metric"><span>Cold starts</span><span class="v info" id="cold-start">512 µs</span></div>
+      <div class="metric"><span>Linear memory</span><span class="v info" id="linear-mem">8 KB</span></div>
+      <div class="metric"><span>Active components</span><span class="v green" id="active-comps">3</span></div>
+      <div style="height:14px"></div>
+      <h3>Throughput trend</h3>
+      <canvas id="throughput-chart" width="900" height="140" aria-label="Throughput chart"></canvas>
+    </div>
+
+    <div class="panel">
+      <h3>Active tenant schemas</h3>
+      <div class="list">
+        <div class="table-head"><div>Tenant</div><div>V</div><div>Fields</div><div>State</div></div>
+        <div id="tenant-list"></div>
+      </div>
+      <div style="height:14px"></div>
+      <h3>System log</h3>
+      <div class="log" id="log-area"></div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  'use strict';
+
+  const fieldTypes = ['u64','f64','str','bytes'];
+  const fieldNames = ['timestamp','device_id','sensor_val','tenant_key','payload','lat','lon','temp','pressure','seq'];
+
+  let tenants = [
+    { id: 1001, version: 1, fields: [{name:'timestamp',type:'u64'},{name:'value',type:'f64'}], state:'active' },
+    { id: 1042, version: 2, fields: [{name:'device_id',type:'u64'},{name:'label',type:'str'},{name:'temp',type:'f64'}], state:'active' },
+    { id: 2007, version: 1, fields: [{name:'seq',type:'u64'}], state:'active' },
+  ];
+
+  let stats = {
+    xdpRate: 1200000,
+    lookupP99: 165,
+    tlbRate: 0.215,
+    mapEntries: 3,
+    ringUsage: 12,
+    schemaUpdates: 3,
+    framesProcessed: 26667,
+    parseErrors: 2,
+    verMismatches: 1,
+    coldStart: 512,
+    linearMem: 8,
+  };
+
+  let throughputHistory = [];
+  let paused = false;
+  let tickCount = 0;
+
+  function fmt(n){ return Number(n).toLocaleString(); }
+
+  function setLastUpdated(){
+    const el = document.getElementById('last-updated');
+    if (el) el.textContent = new Date().toLocaleTimeString();
+  }
+
+  function bootstrapDemoMetrics(){
+    tickCount = 1;
+    const baseRate = 1200000;
+    stats.xdpRate = baseRate;
+    stats.lookupP99 = 165;
+    stats.tlbRate = 0.215;
+    stats.mapEntries = tenants.length;
+    stats.ringUsage = 12;
+    stats.schemaUpdates = 3;
+    stats.framesProcessed = Math.floor(baseRate / 45);
+    stats.parseErrors = 2;
+    stats.verMismatches = 1;
+    stats.coldStart = 512;
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length * 2.4));
+    throughputHistory = [];
+    for (let i=0;i<60;i++){
+      throughputHistory.push(Math.floor(baseRate + Math.sin(i*0.35)*220000 + (Math.random()-0.5)*90000));
+    }
+  }
+
+  function renderTenants(){
+    const el = document.getElementById('tenant-list');
+    if (!el) return;
+    el.innerHTML = tenants.map(function(t){
+      const fields = t.fields.map(function(f){
+        return '<span class="chip">' + f.name + ':' + f.type + '</span>';
+      }).join('');
+      return '<div class="row">' +
+        '<div>#'+t.id+'</div>' +
+        '<div>v'+t.version+'</div>' +
+        '<div>'+fields+'</div>' +
+        '<div><span class="badge '+t.state+'">'+t.state+'</span></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderMetrics(){
+    document.getElementById('xdp-rate').textContent = fmt(stats.xdpRate);
+    document.getElementById('lookup-p99').textContent = stats.lookupP99 + ' ns';
+    document.getElementById('tlb-rate').textContent = stats.tlbRate.toFixed(3) + '%';
+    document.getElementById('map-entries').textContent = fmt(stats.mapEntries);
+    document.getElementById('ring-usage').textContent = stats.ringUsage + '%';
+    document.getElementById('schema-updates').textContent = fmt(stats.schemaUpdates);
+    document.getElementById('frames-processed').textContent = fmt(stats.framesProcessed);
+    document.getElementById('parse-errors').textContent = fmt(stats.parseErrors);
+    document.getElementById('ver-mismatches').textContent = fmt(stats.verMismatches);
+    document.getElementById('cold-start').textContent = stats.coldStart + ' µs';
+    document.getElementById('linear-mem').textContent = stats.linearMem + ' KB';
+    document.getElementById('active-comps').textContent = fmt(tenants.filter(function(t){return t.state==='active';}).length);
+
+    // Update the top KPI strip too
+    document.getElementById('kpi-xdp').textContent = fmt(stats.xdpRate);
+    document.getElementById('kpi-frames').textContent = fmt(stats.framesProcessed);
+    document.getElementById('kpi-schema').textContent = fmt(stats.schemaUpdates);
+    document.getElementById('kpi-tenants').textContent = fmt(tenants.filter(function(t){return t.state==='active';}).length);
+    setLastUpdated();
+  }
+
+  function drawChart(){
+    const canvas = document.getElementById('throughput-chart');
+    if (!canvas || !throughputHistory.length) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.clientWidth || canvas.width;
+    const H = canvas.clientHeight || canvas.height;
+    canvas.width = W;
+    canvas.height = H;
+    ctx.clearRect(0,0,W,H);
+
+    const max = Math.max.apply(null, throughputHistory.concat([1]));
+    const step = W / throughputHistory.length;
+
+    // Grid
+    ctx.strokeStyle = 'rgba(36,48,71,0.9)';
+    ctx.lineWidth = 1;
+    [0.25,0.5,0.75,1].forEach(function(p){
+      const y = H - p*H;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke();
+    });
+
+    // Filled area
+    ctx.beginPath();
+    ctx.moveTo(0,H);
+    throughputHistory.forEach(function(v,i){
+      const x = i*step;
+      const y = H - (v/max)*H*0.9;
+      ctx.lineTo(x,y);
+    });
+    ctx.lineTo(W,H);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0,0,0,H);
+    grad.addColorStop(0,'rgba(52,211,153,0.30)');
+    grad.addColorStop(1,'rgba(52,211,153,0.00)');
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    ctx.strokeStyle = 'rgba(52,211,153,0.95)';
+    ctx.lineWidth = 2;
+    throughputHistory.forEach(function(v,i){
+      const x = i*step;
+      const y = H - (v/max)*H*0.9;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    const last = throughputHistory[throughputHistory.length-1] || 0;
+    ctx.fillStyle = 'rgba(52,211,153,0.95)';
+    ctx.font = '700 12px '+ getComputedStyle(document.body).fontFamily;
+    ctx.fillText(fmt(last) + ' pkt/s', 12, 20);
+  }
+
+  function log(level,msg){
+    const el = document.getElementById('log-area');
+    if (!el) return;
+    const ts = new Date().toISOString().substr(11,12);
+    const row = document.createElement('div');
+    row.className = 'log-entry';
+    row.innerHTML = '<span class="log-ts">'+ts+'</span>' +
+      '<span class="log-lvl '+level+'">'+level+'</span>' +
+      '<span>'+msg+'</span>';
+    el.appendChild(row);
+    el.scrollTop = el.scrollHeight;
+    while (el.children.length>200) el.removeChild(el.firstChild);
+  }
+
+  window.clearLog = function(){
+    const el = document.getElementById('log-area');
+    if (el) el.innerHTML = '';
+  };
+
+  window.pushRandomSchema = function(){
+    const tenant = tenants[Math.floor(Math.random()*tenants.length)];
+    const oldVer = tenant.version;
+    tenant.version++;
+    tenant.state = 'pending';
+    log('SCHEMA','tenant #'+tenant.id+': v'+oldVer+' → v'+tenant.version+' · atomic update');
+    stats.schemaUpdates++;
+    if (Math.random() < 0.35){
+      const newField = {
+        name: fieldNames[Math.floor(Math.random()*fieldNames.length)],
+        type: fieldTypes[Math.floor(Math.random()*fieldTypes.length)]
+      };
+      if (!tenant.fields.find(function(f){return f.name===newField.name;})){
+        tenant.fields.push(newField);
+        log('INFO','tenant #'+tenant.id+': field '+newField.name+':'+newField.type);
+      }
+    }
+    renderTenants();
+    setTimeout(function(){
+      tenant.state='draining';
+      renderTenants();
+      log('XDP','tenant #'+tenant.id+': classifier sees v'+tenant.version);
+      setTimeout(function(){
+        tenant.state='active';
+        renderTenants();
+        stats.coldStart = 400 + Math.floor(Math.random()*300);
+        renderMetrics();
+      }, 260 + Math.random()*220);
+    }, 90);
+  };
+
+  window.runDemoBurst = function(){
+    let n=0;
+    const timer = setInterval(function(){
+      window.pushRandomSchema();
+      stats.framesProcessed += Math.floor(stats.xdpRate/120);
+      renderMetrics();
+      drawChart();
+      if (++n>=4) clearInterval(timer);
+    }, 400);
+  };
+
+  window.addTenant = function(){
+    const id = 3000 + Math.floor(Math.random()*1000);
+    tenants.push({
+      id: id,
+      version: 1,
+      fields: [
+        { name:'timestamp', type:'u64' },
+        { name:'value', type: fieldTypes[Math.floor(Math.random()*2)] }
+      ],
+      state: 'active'
+    });
+    log('INFO','new tenant #'+id+' added');
+    stats.schemaUpdates++;
+    stats.mapEntries = tenants.length;
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length*2.4));
+    renderTenants();
+    renderMetrics();
+  };
+
+  window.togglePause = function(){
+    paused = !paused;
+    const btn = document.getElementById('pauseBtn');
+    if (btn) btn.textContent = paused ? 'Resume' : 'Pause';
+  };
+
+  function tick(){
+    if (paused){ requestAnimationFrame(tick); return; }
+    tickCount++;
+    const baseRate = 1200000 + Math.sin(tickCount*0.05)*300000;
+    const noise = (Math.random()-0.5)*150000;
+    const rate = Math.max(1, Math.floor(baseRate+noise));
+    throughputHistory.push(rate);
+    if (throughputHistory.length>60) throughputHistory.shift();
+
+    stats.xdpRate = rate;
+    stats.lookupP99 = Math.floor(140 + Math.random()*60);
+    stats.tlbRate = parseFloat((0.1 + Math.random()*0.3).toFixed(3));
+    stats.mapEntries = tenants.length;
+    stats.ringUsage = Math.floor(5 + Math.random()*15);
+    stats.framesProcessed += Math.floor(rate/60);
+    if (Math.random() < 0.02) stats.parseErrors++;
+    if (Math.random() < 0.005) stats.verMismatches++;
+    stats.coldStart = Math.floor(420 + Math.random()*280);
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length*2.4));
+
+    renderMetrics();
+    drawChart();
+    setTimeout(function(){ requestAnimationFrame(tick); }, 240);
+  }
+
+  function init(){
+    bootstrapDemoMetrics();
+    renderTenants();
+    renderMetrics();
+    drawChart();
+    log('INFO','Dashboard initialized (seeded non-zero metrics on load)');
+    setTimeout(window.runDemoBurst, 650);
+    requestAnimationFrame(tick);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  window.addEventListener('resize', function(){ drawChart(); });
+})();
+</script>
+</body>
+</html>

@@ -1,7 +1,0 @@
-package wasi:io@0.2.8;
-
-world imports {
-    import streams;
-
-    import poll;
-}

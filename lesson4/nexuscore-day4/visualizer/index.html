@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexusCore · Lesson 4 Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,600;0,9..40,700;1,9..40,400&family=IBM+Plex+Mono:wght@450;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b12;
+    --panel: #0f1629;
+    --panel2: #121a2e;
+    --border: #243047;
+    --green: #34d399;
+    --blue: #60a5fa;
+    --orange: #fbbf24;
+    --red: #f87171;
+    --text: #e8edf7;
+    --muted: #8b9ab8;
+    --font: "DM Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: radial-gradient(1200px 600px at 10% -10%, rgba(52,211,153,0.08), transparent),
+                radial-gradient(800px 400px at 90% 0%, rgba(96,165,250,0.06), transparent),
+                var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    min-height: 100vh;
+    padding: 24px;
+    line-height: 1.45;
+  }
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .live-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 0 4px rgba(52,211,153,0.2);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.55; } }
+  .logo { font-family: var(--mono); font-size: 20px; font-weight: 600; letter-spacing: 0.12em; color: var(--green); }
+  .path-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+    word-break: break-all;
+  }
+  .status-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    text-align: right;
+    max-width: min(100%, 420px);
+  }
+  .status-pill strong { color: var(--green); font-weight: 600; }
+  #last-updated { color: var(--blue); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  button {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--panel2);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  button:hover { border-color: var(--green); color: var(--green); }
+  button.primary { border-color: rgba(52,211,153,0.5); background: rgba(52,211,153,0.08); color: var(--green); }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: linear-gradient(145deg, var(--panel) 0%, var(--panel2) 100%);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 6px; }
+  .kpi-value {
+    font-family: var(--mono);
+    font-size: clamp(1.15rem, 2.8vw, 1.65rem);
+    font-weight: 600;
+    color: var(--green);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+  .kpi-value.blue { color: var(--blue); }
+  .kpi-value.orange { color: var(--orange); }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 18px;
+  }
+  .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 14px;
+    font-weight: 600;
+  }
+  .metric {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(36,48,71,0.6);
+    font-size: 13px;
+  }
+  .metric:last-child { border-bottom: none; }
+  .metric span:first-child { color: var(--muted); }
+  .metric-val {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--green);
+    text-align: right;
+  }
+  .metric-val.warn { color: var(--orange); }
+  .metric-val.err { color: var(--red); }
+  .metric-val.info { color: var(--blue); }
+
+  .tenant-row {
+    display: grid;
+    grid-template-columns: 88px 72px 1fr 88px;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    align-items: center;
+    font-size: 12px;
+  }
+  .tenant-row.head { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .badge.active { background: rgba(52,211,153,0.12); color: var(--green); }
+  .badge.pending { background: rgba(251,191,36,0.12); color: var(--orange); }
+  .badge.draining { background: rgba(96,165,250,0.12); color: var(--blue); }
+  .field-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .field-chip {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid rgba(96,165,250,0.25);
+    color: var(--blue);
+    background: rgba(96,165,250,0.06);
+  }
+  .field-chip.u64 { border-color: rgba(52,211,153,0.35); color: var(--green); background: rgba(52,211,153,0.06); }
+  .field-chip.f64 { border-color: rgba(251,191,36,0.35); color: var(--orange); background: rgba(251,191,36,0.06); }
+  .field-chip.bytes { border-color: rgba(248,113,113,0.35); color: var(--red); background: rgba(248,113,113,0.06); }
+
+  .chart-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  @media (max-width: 900px) { .chart-row { grid-template-columns: 1fr; } }
+
+  canvas { display: block; width: 100%; height: 140px; }
+  .chart-wrap { min-height: 156px; }
+
+  .log-area {
+    background: #050810;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    height: 200px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.75;
+  }
+  .log-entry { display: flex; gap: 10px; flex-wrap: wrap; }
+  .log-ts { color: var(--muted); min-width: 86px; }
+  .log-lvl { min-width: 52px; font-weight: 600; }
+  .log-lvl.INFO { color: var(--blue); }
+  .log-lvl.SCHEMA { color: var(--green); }
+  .log-lvl.WARN { color: var(--orange); }
+  .log-lvl.XDP { color: #c4b5fd; }
+
+  .schema-bar-container { height: 8px; background: #1a2336; border-radius: 6px; overflow: hidden; }
+  .schema-bar { height: 100%; border-radius: 6px; transition: width 0.35s ease; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="live-dot" aria-hidden="true"></div>
+    <div>
+      <div class="logo">NEXUSCORE</div>
+      <div class="path-hint">lesson4 / nexuscore-day4 / visualizer · Day 4 — Live schema monitor (simulated telemetry)</div>
+    </div>
+  </div>
+  <div class="status-pill">
+    <strong>Live simulation</strong> · metrics refresh ~4×/s<br>
+    <span id="last-updated">—</span>
+  </div>
+</header>
+
+<div class="controls">
+  <button type="button" class="primary" onclick="pushRandomSchema()">Push schema update</button>
+  <button type="button" onclick="addTenant()">Add tenant</button>
+  <button type="button" onclick="runDemoBurst()">Run demo burst</button>
+  <button type="button" onclick="togglePause()" id="pauseBtn">Pause</button>
+  <button type="button" onclick="clearLog()">Clear log</button>
+</div>
+
+<!-- Top KPI strip: numbers visible before/without JS paint issues -->
+<div class="kpi-row" aria-label="Key metrics">
+  <div class="kpi">
+    <div class="kpi-label">XDP classified / sec</div>
+    <div class="kpi-value" id="kpi-xdp">1,200,000</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Frames processed</div>
+    <div class="kpi-value blue" id="kpi-frames">26,667</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Schema updates</div>
+    <div class="kpi-value orange" id="kpi-schema">3</div>
+  </div>
+  <div class="kpi">
+    <div class="kpi-label">Active tenants</div>
+    <div class="kpi-value" id="kpi-tenants">3</div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <div class="panel-title">Kernel metrics</div>
+    <div class="metric"><span>XDP classified/s</span><span class="metric-val" id="xdp-rate">1,200,000</span></div>
+    <div class="metric"><span>Schema lookup p99</span><span class="metric-val" id="lookup-p99">165 ns</span></div>
+    <div class="metric"><span>TLB miss rate</span><span class="metric-val" id="tlb-rate">0.215%</span></div>
+    <div class="metric"><span>BPF map entries</span><span class="metric-val info" id="map-entries">3</span></div>
+    <div class="metric"><span>Ring buffer usage</span><span class="metric-val" id="ring-usage">12%</span></div>
+    <div class="metric"><span>Schema updates pushed</span><span class="metric-val" id="schema-updates">3</span></div>
+  </div>
+  <div class="panel">
+    <div class="panel-title">WASI component stats</div>
+    <div class="metric"><span>Frames processed</span><span class="metric-val" id="frames-processed">26,667</span></div>
+    <div class="metric"><span>Parse errors</span><span class="metric-val err" id="parse-errors">2</span></div>
+    <div class="metric"><span>Version mismatches</span><span class="metric-val warn" id="ver-mismatches">1</span></div>
+    <div class="metric"><span>Cold starts</span><span class="metric-val info" id="cold-start">512 µs</span></div>
+    <div class="metric"><span>Linear memory</span><span class="metric-val" id="linear-mem">8 KB</span></div>
+    <div class="metric"><span>Active components</span><span class="metric-val" id="active-comps">3</span></div>
+  </div>
+</div>
+
+<div class="panel" style="margin-bottom:16px">
+  <div class="panel-title">Active tenant schemas</div>
+  <div class="tenant-row head">
+    <span>Tenant</span><span>Version</span><span>Fields</span><span>State</span>
+  </div>
+  <div id="tenant-list"></div>
+</div>
+
+<div class="chart-row">
+  <div class="panel chart-wrap">
+    <div class="panel-title">XDP throughput · packets/sec</div>
+    <canvas id="throughput-chart" width="800" height="140" role="img" aria-label="Throughput chart"></canvas>
+  </div>
+  <div class="panel">
+    <div class="panel-title">Schema version distribution</div>
+    <div id="version-bars" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<div>
+  <div class="panel-title" style="margin-bottom:8px">System log</div>
+  <div class="log-area" id="log-area"></div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const fieldTypes = ['u64','f64','str','bytes'];
+  const fieldNames = ['timestamp','device_id','sensor_val','tenant_key','payload','lat','lon','temp','pressure','seq'];
+
+  let tenants = [
+    { id: 1001, version: 1, fields: [{name:'timestamp',type:'u64'},{name:'value',type:'f64'}], state:'active' },
+    { id: 1042, version: 2, fields: [{name:'device_id',type:'u64'},{name:'label',type:'str'},{name:'temp',type:'f64'}], state:'active' },
+    { id: 2007, version: 1, fields: [{name:'seq',type:'u64'}], state:'active' },
+  ];
+
+  let stats = {
+    xdpRate: 0, lookupP99: 0, tlbRate: 0, mapEntries: 0, ringUsage: 0, schemaUpdates: 0,
+    framesProcessed: 0, parseErrors: 0, verMismatches: 0, coldStart: 0, linearMem: 0,
+  };
+
+  let throughputHistory = [];
+  let paused = false;
+  let tickCount = 0;
+
+  const fmt = function (n) { return n.toLocaleString(); };
+
+  function setLastUpdated() {
+    const el = document.getElementById('last-updated');
+    if (!el) return;
+    el.textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  function bootstrapDemoMetrics() {
+    tickCount = 1;
+    const baseRate = 1200000;
+    stats.xdpRate = baseRate;
+    stats.lookupP99 = 165;
+    stats.tlbRate = 0.215;
+    stats.mapEntries = tenants.length;
+    stats.ringUsage = 12;
+    stats.schemaUpdates = 3;
+    stats.framesProcessed = Math.floor(baseRate / 45);
+    stats.parseErrors = 2;
+    stats.verMismatches = 1;
+    stats.coldStart = 512;
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length * 2.4));
+    throughputHistory = [];
+    for (let i = 0; i < 60; i++) {
+      throughputHistory.push(
+        Math.floor(baseRate + Math.sin(i * 0.35) * 220000 + (Math.random() - 0.5) * 90000)
+      );
+    }
+  }
+
+  function renderKpis() {
+    const nx = document.getElementById('kpi-xdp');
+    const nf = document.getElementById('kpi-frames');
+    const ns = document.getElementById('kpi-schema');
+    const nt = document.getElementById('kpi-tenants');
+    if (nx) nx.textContent = fmt(stats.xdpRate);
+    if (nf) nf.textContent = fmt(stats.framesProcessed);
+    if (ns) ns.textContent = String(stats.schemaUpdates);
+    if (nt) nt.textContent = String(tenants.filter(function (t) { return t.state === 'active'; }).length);
+  }
+
+  function renderTenants() {
+    const el = document.getElementById('tenant-list');
+    if (!el) return;
+    el.innerHTML = tenants.map(function (t) {
+      return (
+        '<div class="tenant-row">' +
+          '<span style="color:var(--blue)">#' + t.id + '</span>' +
+          '<span style="color:var(--orange)">v' + t.version + '</span>' +
+          '<div class="field-chips">' +
+            t.fields.map(function (f) {
+              return '<span class="field-chip ' + f.type + '">' + f.name + ':' + f.type + '</span>';
+            }).join('') +
+          '</div>' +
+          '<span class="badge ' + t.state + '">' + t.state + '</span>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderMetrics() {
+    document.getElementById('xdp-rate').textContent = fmt(stats.xdpRate);
+    document.getElementById('lookup-p99').textContent = stats.lookupP99 + ' ns';
+    document.getElementById('tlb-rate').textContent = stats.tlbRate.toFixed(3) + '%';
+    document.getElementById('map-entries').textContent = String(stats.mapEntries);
+    document.getElementById('ring-usage').textContent = stats.ringUsage + '%';
+    document.getElementById('schema-updates').textContent = String(stats.schemaUpdates);
+    document.getElementById('frames-processed').textContent = fmt(stats.framesProcessed);
+    document.getElementById('parse-errors').textContent = String(stats.parseErrors);
+    document.getElementById('ver-mismatches').textContent = String(stats.verMismatches);
+    document.getElementById('cold-start').textContent = stats.coldStart + ' µs';
+    document.getElementById('linear-mem').textContent = stats.linearMem + ' KB';
+    document.getElementById('active-comps').textContent = String(
+      tenants.filter(function (t) { return t.state === 'active'; }).length
+    );
+    renderKpis();
+    setLastUpdated();
+  }
+
+  function renderVersionBars() {
+    const counts = {};
+    tenants.forEach(function (t) {
+      counts[t.version] = (counts[t.version] || 0) + 1;
+    });
+    const vals = Object.values(counts);
+    const max = Math.max.apply(null, vals.concat([1]));
+    const colors = ['var(--green)','var(--blue)','var(--orange)'];
+    const el = document.getElementById('version-bars');
+    if (!el) return;
+    const entries = Object.keys(counts).sort(function (a, b) { return Number(a) - Number(b); });
+    el.innerHTML = entries.map(function (v, i) {
+      const c = counts[v];
+      return (
+        '<div style="margin-bottom:12px">' +
+          '<div style="display:flex;justify-content:space-between;margin-bottom:6px">' +
+            '<span style="color:var(--muted);font-size:10px">v' + v + '</span>' +
+            '<span style="color:var(--text);font-size:11px;font-family:var(--mono)">' + c + ' tenant' + (c > 1 ? 's' : '') + '</span>' +
+          '</div>' +
+          '<div class="schema-bar-container">' +
+            '<div class="schema-bar" style="width:' + ((c / max) * 100) + '%;background:' + colors[i % 3] + '"></div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function drawChart() {
+    const canvas = document.getElementById('throughput-chart');
+    if (!canvas || !throughputHistory.length) return;
+    const wrap = canvas.parentElement;
+    const W = Math.max(280, (wrap && wrap.clientWidth) ? wrap.clientWidth - 36 : 600);
+    const H = 140;
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    const max = Math.max.apply(null, throughputHistory.concat([1]));
+    const step = W / throughputHistory.length;
+    ctx.strokeStyle = '#243047';
+    [0.25, 0.5, 0.75, 1].forEach(function (p) {
+      const y = H - p * H;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+      ctx.stroke();
+    });
+    const grad = ctx.createLinearGradient(0, 0, 0, H);
+    grad.addColorStop(0, 'rgba(52,211,153,0.28)');
+    grad.addColorStop(1, 'rgba(52,211,153,0)');
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    throughputHistory.forEach(function (v, i) {
+      const x = i * step;
+      const y = H - (v / max) * H * 0.9;
+      ctx.lineTo(x, y);
+    });
+    ctx.lineTo(W, H);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = '#34d399';
+    ctx.lineWidth = 2;
+    throughputHistory.forEach(function (v, i) {
+      const x = i * step;
+      const y = H - (v / max) * H * 0.9;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.fillStyle = '#34d399';
+    ctx.font = '600 11px IBM Plex Mono, monospace';
+    const last = throughputHistory[throughputHistory.length - 1] || 0;
+    ctx.fillText(fmt(last) + ' pkt/s', 8, 18);
+  }
+
+  function log(level, msg) {
+    const el = document.getElementById('log-area');
+    if (!el) return;
+    const ts = new Date().toISOString().substr(11, 12);
+    const row = document.createElement('div');
+    row.className = 'log-entry';
+    row.innerHTML =
+      '<span class="log-ts">' + ts + '</span>' +
+      '<span class="log-lvl ' + level + '">' + level + '</span>' +
+      '<span>' + msg + '</span>';
+    el.appendChild(row);
+    el.scrollTop = el.scrollHeight;
+    while (el.children.length > 200) el.removeChild(el.firstChild);
+  }
+
+  window.clearLog = function () {
+    const el = document.getElementById('log-area');
+    if (el) el.innerHTML = '';
+  };
+
+  window.pushRandomSchema = function () {
+    const tenant = tenants[Math.floor(Math.random() * tenants.length)];
+    const oldVer = tenant.version;
+    tenant.version++;
+    tenant.state = 'pending';
+    log('SCHEMA', 'tenant #' + tenant.id + ': v' + oldVer + ' → v' + tenant.version + ' · atomic update');
+    stats.schemaUpdates++;
+    if (Math.random() < 0.4) {
+      const newField = {
+        name: fieldNames[Math.floor(Math.random() * fieldNames.length)],
+        type: fieldTypes[Math.floor(Math.random() * fieldTypes.length)],
+      };
+      if (!tenant.fields.find(function (f) { return f.name === newField.name; })) {
+        tenant.fields.push(newField);
+        log('INFO', 'tenant #' + tenant.id + ": field '" + newField.name + ':' + newField.type + "'");
+      }
+    }
+    renderTenants();
+    renderMetrics();
+    setTimeout(function () {
+      tenant.state = 'draining';
+      renderTenants();
+      log('XDP', 'tenant #' + tenant.id + ': classifier sees v' + tenant.version);
+      setTimeout(function () {
+        tenant.state = 'active';
+        renderTenants();
+        log('INFO', 'tenant #' + tenant.id + ': component warm · ~' + (400 + Math.floor(Math.random() * 300)) + 'µs');
+        renderMetrics();
+      }, 300 + Math.random() * 200);
+    }, 100);
+  };
+
+  window.runDemoBurst = function () {
+    let n = 0;
+    const id = setInterval(function () {
+      window.pushRandomSchema();
+      stats.framesProcessed += Math.floor(stats.xdpRate / 120);
+      renderMetrics();
+      drawChart();
+      if (++n >= 4) clearInterval(id);
+    }, 400);
+  };
+
+  window.addTenant = function () {
+    const id = 3000 + Math.floor(Math.random() * 1000);
+    tenants.push({
+      id: id,
+      version: 1,
+      fields: [
+        { name: 'timestamp', type: 'u64' },
+        { name: 'value', type: fieldTypes[Math.floor(Math.random() * 2)] },
+      ],
+      state: 'active',
+    });
+    log('INFO', 'tenant #' + id + ' registered · schema v1');
+    stats.schemaUpdates++;
+    stats.mapEntries = tenants.length;
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length * 2.4));
+    renderTenants();
+    renderMetrics();
+    renderVersionBars();
+  };
+
+  window.togglePause = function () {
+    paused = !paused;
+    const btn = document.getElementById('pauseBtn');
+    if (btn) {
+      btn.textContent = paused ? 'Resume' : 'Pause';
+      btn.classList.toggle('primary', !paused);
+    }
+  };
+
+  function tick() {
+    if (paused) {
+      requestAnimationFrame(tick);
+      return;
+    }
+    tickCount++;
+    const baseRate = 1200000 + Math.sin(tickCount * 0.05) * 300000;
+    const noise = (Math.random() - 0.5) * 150000;
+    const rate = Math.max(1, Math.floor(baseRate + noise));
+    throughputHistory.push(rate);
+    if (throughputHistory.length > 60) throughputHistory.shift();
+    stats.xdpRate = rate;
+    stats.lookupP99 = Math.floor(140 + Math.random() * 60);
+    stats.tlbRate = parseFloat((0.1 + Math.random() * 0.3).toFixed(3));
+    stats.mapEntries = tenants.length;
+    stats.ringUsage = Math.floor(5 + Math.random() * 15);
+    stats.framesProcessed += Math.floor(rate / 60);
+    if (Math.random() < 0.02) stats.parseErrors++;
+    if (Math.random() < 0.005) stats.verMismatches++;
+    stats.coldStart = Math.floor(420 + Math.random() * 280);
+    stats.linearMem = Math.max(8, Math.ceil(tenants.length * 2.4));
+    if (tickCount % 120 === 0) {
+      const t = tenants[Math.floor(Math.random() * tenants.length)];
+      log('XDP', 'schema_map: tenant #' + t.id + ' v' + t.version + ' · ~' + stats.lookupP99 + 'ns');
+    }
+    renderMetrics();
+    renderVersionBars();
+    drawChart();
+    setTimeout(function () { requestAnimationFrame(tick); }, 250);
+  }
+
+  function initDashboard() {
+    bootstrapDemoMetrics();
+    renderTenants();
+    renderMetrics();
+    renderVersionBars();
+    function paint() {
+      drawChart();
+      requestAnimationFrame(function () { drawChart(); });
+    }
+    paint();
+    log('INFO', 'Dashboard ready — Lesson 4 simulated telemetry');
+    log('XDP', 'Target map: /sys/fs/bpf/nexuscore/schemas (live mode when pinned)');
+    log('INFO', 'WASI component path: nexuscore-day4/wasi-component');
+    log('SCHEMA', 'Seeded 3 tenants · metrics non-zero on load');
+    setTimeout(window.runDemoBurst, 650);
+    requestAnimationFrame(tick);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboard);
+  } else {
+    initDashboard();
+  }
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      drawChart();
+    }, 120);
+  });
+})();
+</script>
+</body>
+</html>

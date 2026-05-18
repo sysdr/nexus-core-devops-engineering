@@ -1,3 +1,0 @@
-[workspace]
-members = ["rag-component", "nexuscore-host"]
-resolver = "2"

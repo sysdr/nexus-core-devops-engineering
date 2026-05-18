@@ -1,0 +1,34 @@
+package nexuscore:tenant@0.1.0;
+
+interface tenant-processor {
+    variant field-value {
+        u64-val(u64),
+        f64-val(float64),
+        bytes-val(list<u8>),
+        str-val(string),
+        unknown,
+    }
+
+    record schema-descriptor {
+        version:       u64,
+        field-count:   u16,
+        field-offsets: list<u16>,
+        field-types:   list<u8>,
+    }
+
+    variant schema-result {
+        ok,
+        stale-update,
+        invalid-descriptor,
+        version-conflict(u64),
+    }
+
+    apply-schema-update: func(raw: list<u8>) -> schema-result;
+    process-frame: func(frame: list<u8>, schema-version: u64) -> list<field-value>;
+    current-schema-version: func() -> u64;
+    stats: func() -> tuple<u64, u64, u64>;
+}
+
+world tenant-component {
+    export tenant-processor;
+}
